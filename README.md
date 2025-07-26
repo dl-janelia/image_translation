@@ -1,6 +1,6 @@
-# Exercise 6: Image translation - Part 1
+# Exercise 6: Image translation
 
-Written by Eduardo Hirata-Miyasaki, Ziwen Liu, and Shalin Mehta, CZ Biohub San Francisco with many inputs from Diane Adjavon for the DL@MBL2024 course
+Written by Eduardo Hirata-Miyasaki, Ziwen Liu, and Shalin Mehta, CZ Biohub San Francisco with many inputs from Diane Adjavon for the AI@MBL2025 course
 
 ## Overview
 
@@ -88,5 +88,5 @@ python -m ipykernel install --user --name=06_image_translation
 
 ### References
 
-- [Liu, Z. and Hirata-Miyasaki, E. et al. (2024) Robust Virtual Staining of Cellular Landmarks](https://www.biorxiv.org/content/10.1101/2024.05.31.596901v2.full.pdf)
+- [Liu, Z. and Hirata-Miyasaki, E. et al. (2024) Robust Virtual Staining of Cellular Landmarks](https://www.nature.com/articles/s42256-025-01046-2)
 - [Guo et al. (2020) Revealing architectural order with quantitative label-free imaging and deep learning. eLife](https://elifesciences.org/articles/55502)
