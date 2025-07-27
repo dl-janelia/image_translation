@@ -3,7 +3,7 @@
 START_DIR=$(pwd)
 
 # Create conda environment
-conda create -y --name 06_image_translation python=3.10
+conda create -y --name 06_image_translation python=3.11
 
 # Install ipykernel in the environment.
 conda install -y ipykernel nbformat nbconvert black jupytext ipywidgets --name 06_image_translation
@@ -13,7 +13,7 @@ conda install -y ipykernel nbformat nbconvert black jupytext ipywidgets --name 0
 # install viscy and its dependencies`s in the environment using pip.
 # Find path to the environment - conda activate doesn't work from within shell scripts.
 ENV_PATH=$(conda info --envs | grep 06_image_translation | awk '{print $NF}')
-$ENV_PATH/bin/pip install "viscy[metrics,visual]==0.2.0rc1"
+$ENV_PATH/bin/pip install "viscy[metrics,visual]>=0.3.0,<0.4.0"
 $ENV_PATH/bin/pip install "jupyterlab"
 
 # Create the directory structure

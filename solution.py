@@ -1,5 +1,5 @@
 # %% [markdown] tags=[]
-# # Image translation (Virtual Staining)
+# # Image translation (Virtual Staining with CytoLand)
 
 # Written by Eduardo Hirata-Miyasaki, Ziwen Liu, and Shalin Mehta, CZ Biohub San Francisco
 
@@ -239,8 +239,8 @@ row = 0
 col = 0
 field = 9  # TODO: Change this to explore data.
 
-# NOTE: this dataset only has one level
-pyaramid_level = 0
+# NOTE: this dataset only has 4 pyramid levels
+pyaramid_level = 0 # TODO: Change this to explore the resolutions
 
 # `channel_names` is the metadata that is stored with data according to the OME-NGFF spec.
 n_channels = len(dataset.channel_names)
