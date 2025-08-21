@@ -934,8 +934,36 @@ phase2fluor_model.to(device)
 
 # %% [markdown] tags=[]
 # ### Let's compute metrics directly and plot below.
+
 # %% [markdown] tags=[]
 # <div class="alert alert-danger">
+#
+# If at any point during the exercise you need to reload your trained model, simply run the following code"
+# ```python
+# # Load the latest checkpoint
+# phase2fluor_model_ckpt = natsorted(glob(
+#    str(top_dir / "06_image_translation/logs/phase2fluor/version*/checkpoints/*.ckpt")
+# ))[-1]
+# # Load the config
+# phase2fluor_config = dict(
+#     in_channels=1,
+#     out_channels=2,
+#     encoder_blocks=[3, 3, 9, 3],
+#     dims=[96, 192, 384, 768],
+#     decoder_conv_blocks=2,
+#     stem_kernel_size=(1, 2, 2),
+#     in_stack_depth=1,
+#     pretraining=False,
+# )
+# # Load the model
+# phase2fluor_model = VSUNet.load_from_checkpoint(
+#     phase2fluor_model_ckpt,
+#     architecture="UNeXt2_2D",
+#     model_config=phase2fluor_config,
+#     accelerator='gpu'
+# )
+# ```
+
 # If you weren't able to train or training didn't complete please run the following lines to load the latest checkpoint <br>
 #
 # ```python
@@ -1592,7 +1620,7 @@ with tqdm(total=total_positions, desc="Processing FOVs") as pbar:
         pbar.set_description(f"Processing FOV {fov} - Computing Segmentation Metrics")
         pbar.refresh()
         pred_label, target_label = cellpose_segmentation(
-            predicted_nuc_phase2fluor, target_nucleus
+            predicted_nuc_phase2fluor, target_nucleus[0,0]
         )
         # Binary labels
         pred_label_binary = pred_label > 0
@@ -1627,7 +1655,7 @@ with tqdm(total=total_positions, desc="Processing FOVs") as pbar:
         }
 
         pred_label, target_label = cellpose_segmentation(
-            predicted_nuc_pretrained, target_nucleus
+            predicted_nuc_pretrained, target_nucleus[0,0]
         )
 
         # Binary labels
