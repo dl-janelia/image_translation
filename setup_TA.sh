@@ -32,6 +32,7 @@ cd "$output_dir"/data/06_image_translation/test
 wget -m -np -nH --cut-dirs=5 -R "index.html*" "https://public.czbiohub.org/comp.micro/viscy/VS_datasets/VSCyto2D/test/a549_hoechst_cellmask_test.zarr/"
 cd "$output_dir"/data/06_image_translation/pretrained_models
 wget -m -np -nH --cut-dirs=4 -R "index.html*" "https://public.czbiohub.org/comp.micro/viscy/VS_models/VSCyto2D/VSCyto2D/epoch=399-step=23200.ckpt"
+wget -m -np -nH --cut-dirs=4 -R "index.html*" "https://public.czbiohub.org/comp.micro/viscy/VS_models/VSCyto2D/AIMBL_Demo/fluor2phase_step668.ckpt"
 
 # Change back to the starting directory
 cd $START_DIR

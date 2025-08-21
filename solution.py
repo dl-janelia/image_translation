@@ -52,7 +52,7 @@
 # [PyTorch Lightning](https://lightning.ai/) and [MONAI](https://monai.io/).
 
 # ### References
-# - [Liu, Z. and Hirata-Miyasaki, E. et al. (2024) Robust Virtual Staining of Cellular Landmarks](https://www.biorxiv.org/content/10.1101/2024.05.31.596901v2.full.pdf)
+# - [Liu, Z. and Hirata-Miyasaki, E. et al. (2024) Robust Virtual Staining of Cellular Landmarks](https://www.nature.com/articles/s42256-025-01046-2)
 # - [Guo et al. (2020) Revealing architectural order with quantitative label-free imaging and deep learning. eLife](https://elifesciences.org/articles/55502)
 
 # %% [markdown] tags=[]
@@ -1960,7 +1960,7 @@ print("Fluorescence-to-phase model created (note: using untrained model for demo
 print("In practice, load a pretrained checkpoint for meaningful results")
 
 print('Loading pretrained fluorescence-to-phase model...')
-fluor2phase_model_path = Path('/mnt/efs/aimbl_2025/data/06_image_translation/pretrained_models/fluor2phase_model.ckpt')
+fluor2phase_model_path = Path('/mnt/efs/aimbl_2025/data/06_image_translation/pretrained_models/AIMBL_Demo/fluor2phase_step668.ckpt')
 assert fluor2phase_model_path.exists(), "Fluorescence-to-phase model checkpoint not found. Please check the path."
 fluor2phase_model = VSUNet.load_from_checkpoint(fluor2phase_model_path)
 
