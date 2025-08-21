@@ -1,7 +1,7 @@
 #!/usr/bin/env -S bash -i
 
 START_DIR=$(pwd)
-ENV_NAME="06_image_translation"
+ENV_NAME="04_image_translation"
 
 # Create conda environment
 conda create -y --name $ENV_NAME python=3.11

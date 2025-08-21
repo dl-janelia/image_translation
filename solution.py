@@ -70,7 +70,7 @@
 
 # %% [markdown] tags=[]
 # <div class="alert alert-danger">
-# Set your python kernel to <span style="color:black;">06_image_translation</span>
+# Set your python kernel to <span style="color:black;">04_image_translation</span>
 # </div>
 # %% [markdown]
 # # Part 1: Log training data to tensorboard, start training a model.
@@ -142,14 +142,14 @@ top_dir = Path(
 
 # Path to the training data
 data_path = (
-    top_dir / "06_image_translation/training/a549_hoechst_cellmask_train_val.zarr"
+    top_dir / "04_image_translation/training/a549_hoechst_cellmask_train_val.zarr"
 )
 
 # Path where we will save our training logs
 training_top_dir = Path(f"{os.getcwd()}/data/")
 # Create top_training_dir directory if needed, and launch tensorboard
 training_top_dir.mkdir(parents=True, exist_ok=True)
-log_dir = training_top_dir / "06_image_translation/logs/"
+log_dir = training_top_dir / "04_image_translation/logs/"
 # Create log directory if needed, and launch tensorboard
 log_dir.mkdir(parents=True, exist_ok=True)
 
@@ -937,7 +937,7 @@ phase2fluor_model.to(device)
 # ```python
 # # Load the latest checkpoint
 # phase2fluor_model_ckpt = natsorted(glob(
-#    str(top_dir / "06_image_translation/logs/phase2fluor/version*/checkpoints/*.ckpt")
+#    str(top_dir / "04_image_translation/logs/phase2fluor/version*/checkpoints/*.ckpt")
 # ))[-1]
 # # Load the config
 # phase2fluor_config = dict(
@@ -963,7 +963,7 @@ phase2fluor_model.to(device)
 #
 # ```python
 # phase2fluor_model_ckpt = natsorted(glob(
-#    str(top_dir / "06_image_translation/logs/phase2fluor/version*/checkpoints/*.ckpt")
+#    str(top_dir / "04_image_translation/logs/phase2fluor/version*/checkpoints/*.ckpt")
 # ))[-1]
 # ```
 # <br>
@@ -972,7 +972,7 @@ phase2fluor_model.to(device)
 #
 # ```python
 # phase2fluor_model_ckpt = natsorted(glob(
-#  str(top_dir/"06_image_translation/backup/phase2fluor/version_0/checkpoints/*.ckpt")
+#  str(top_dir/"04_image_translation/backup/phase2fluor/version_0/checkpoints/*.ckpt")
 # ))[-1]
 # ```
 
@@ -998,7 +998,7 @@ phase2fluor_model.to(device)
 # </div>
 # %%
 # Setup the test data module.
-test_data_path = top_dir / "06_image_translation/test/a549_hoechst_cellmask_test.zarr"
+test_data_path = top_dir / "04_image_translation/test/a549_hoechst_cellmask_test.zarr"
 source_channel = ["Phase3D"]
 target_channel = ["Nucl", "Mem"]
 
@@ -1136,7 +1136,7 @@ for i, sample in enumerate(test_data.test_dataloader()):
 # Here we will compare your model with the VSCyto2D pretrained model by computing the pixel-based metrics and segmentation-based metrics.
 #
 # <ul>
-# <li>When you ran the `setup.sh` you also downloaded the models in `/06_image_translation/pretrained_models/VSCyto2D/*.ckpt`</li>
+# <li>When you ran the `setup.sh` you also downloaded the models in `/04_image_translation/pretrained_models/VSCyto2D/*.ckpt`</li>
 # <li>Load the <b>VSCyto2 model</b> model checkpoint and the configuration file</li>
 # <li>Compute the pixel-based metrics and segmentation-based metrics between the model you trained and the pretrained model</li>
 # </ul>
@@ -1174,7 +1174,7 @@ pretrained_phase2fluor = VSUNet.load_from_checkpoint(
 
 pretrained_model_ckpt = (
     top_dir
-    / "06_image_translation/pretrained_models/VSCyto2D/epoch=399-step=23200.ckpt"
+    / "04_image_translation/pretrained_models/VSCyto2D/epoch=399-step=23200.ckpt"
 )
 
 phase2fluor_config = dict(
@@ -1202,7 +1202,7 @@ phase2fluor_model_ckpt = natsorted(
     glob(
         str(
             training_top_dir
-            / "06_image_translation/logs/phase2fluor/version*/checkpoints/*.ckpt"
+            / "04_image_translation/logs/phase2fluor/version*/checkpoints/*.ckpt"
         )
     )
 )[-1]
@@ -1210,7 +1210,7 @@ phase2fluor_model_ckpt = natsorted(
 # NOTE: if their model didn't go past epoch 5, lost their checkpoint, or didnt train anything.
 # Uncomment the next lines
 # phase2fluor_model_ckpt = natsorted(glob(
-#  str(top_dir/"06_image_translation/backup/phase2fluor/version_0/checkpoints/*.ckpt")
+#  str(top_dir/"04_image_translation/backup/phase2fluor/version_0/checkpoints/*.ckpt")
 # ))[-1]
 
 phase2fluor_config = dict(
@@ -1301,9 +1301,9 @@ def cellpose_segmentation(
 
 # %%
 # Setting the paths for the test data and the output segmentation
-test_data_path = top_dir / "06_image_translation/test/a549_hoechst_cellmask_test.zarr"
+test_data_path = top_dir / "04_image_translation/test/a549_hoechst_cellmask_test.zarr"
 output_segmentation_path = (
-    training_top_dir / "06_image_translation/pretrained_model_segmentations.zarr"
+    training_top_dir / "04_image_translation/pretrained_model_segmentations.zarr"
 )
 
 # Creating the dataframes to store the pixel and segmentation metrics
@@ -1702,9 +1702,9 @@ test_dataset.close()
 segmentation_store.close()
 # %%
 # Save the test metrics into a dataframe
-pixel_metrics_path = training_top_dir / "06_image_translation/VS_metrics_pixel.csv"
+pixel_metrics_path = training_top_dir / "04_image_translation/VS_metrics_pixel.csv"
 segmentation_metrics_path = (
-    training_top_dir / "06_image_translation/VS_metrics_segments.csv"
+    training_top_dir / "04_image_translation/VS_metrics_segments.csv"
 )
 test_pixel_metrics.to_csv(pixel_metrics_path)
 test_segmentation_metrics.to_csv(segmentation_metrics_path)
@@ -1957,7 +1957,7 @@ print("Fluorescence-to-phase model created (note: using untrained model for demo
 print("In practice, load a pretrained checkpoint for meaningful results")
 
 print('Loading pretrained fluorescence-to-phase model...')
-fluor2phase_model_path = Path('/mnt/efs/aimbl_2025/data/06_image_translation/pretrained_models/AIMBL_Demo/fluor2phase_step668.ckpt')
+fluor2phase_model_path = Path('/mnt/efs/aimbl_2025/data/04_image_translation/pretrained_models/AIMBL_Demo/fluor2phase_step668.ckpt')
 assert fluor2phase_model_path.exists(), "Fluorescence-to-phase model checkpoint not found. Please check the path."
 fluor2phase_model = VSUNet.load_from_checkpoint(fluor2phase_model_path)
 
@@ -2470,7 +2470,7 @@ def pcs_to_rgb(feat: np.ndarray, n_components: int = 8) -> np.ndarray:
 
 # %%
 # Load the test dataset
-test_data_path = top_dir / "06_image_translation/test/a549_hoechst_cellmask_test.zarr"
+test_data_path = top_dir / "04_image_translation/test/a549_hoechst_cellmask_test.zarr"
 test_dataset = open_ome_zarr(test_data_path)
 
 # Looking at the test dataset
@@ -2531,7 +2531,7 @@ plt.imshow(phase_img[0, 0, 0], cmap="gray")
 # Loading the pretrained model
 pretrained_model_ckpt = (
     top_dir
-    / "06_image_translation/pretrained_models/VSCyto2D/epoch=399-step=23200.ckpt"
+    / "04_image_translation/pretrained_models/VSCyto2D/epoch=399-step=23200.ckpt"
 )
 # model config as before
 phase2fluor_config = dict(
