@@ -2,6 +2,7 @@
 # # Image translation (Virtual Staining)
 
 # Written by Eduardo Hirata-Miyasaki, Ziwen Liu, and Shalin Mehta, CZ Biohub San Francisco
+# Reviewed by AI@MBL TAs
 
 # ## Overview
 #
@@ -86,7 +87,7 @@
 import os
 from glob import glob
 from pathlib import Path
-from typing import Tuple
+from typing import NamedTuple, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -99,18 +100,19 @@ from iohub import open_ome_zarr
 from iohub.reader import print_info
 from lightning.pytorch import seed_everything
 from lightning.pytorch.loggers import TensorBoardLogger
+from monai.networks.layers import GaussianFilter
 from natsort import natsorted
 from numpy.typing import ArrayLike
-from skimage import metrics  # for metrics.
+from skimage import metrics
 
 # pytorch lightning wrapper for Tensorboard.
 from skimage.color import label2rgb
+from skimage.exposure import rescale_intensity
+from sklearn.decomposition import PCA
 from torch.utils.tensorboard import SummaryWriter  # for logging to tensorboard
 from torchmetrics.functional import accuracy, jaccard_index
 from torchmetrics.functional.segmentation import dice_score
 from tqdm import tqdm
-
-# HCSDataModule makes it easy to load data during training.
 from viscy.data.hcs import HCSDataModule
 from viscy.trainer import VisCyTrainer
 
@@ -222,18 +224,16 @@ tensorboard_process = launch_tensorboard(log_dir)
 
 # %% [markdown] tags=[]
 # <div class="alert alert-warning">
-# You can inspect the tree structure by using your terminal:
+# <b>For Jupyter Notebook users:</b> Run the cell below to inspect the dataset structure.
+# <br><br>
+# <b>For terminal/CLI users:</b> You can inspect the tree structure using your terminal:
 # <code> iohub info -v "path-to-ome-zarr" </code>
-
-# <br>
-# More info on the CLI:
-# <code>iohub info --help </code> to see the help menu.
+# <br><br>
+# More info on the CLI: <code>iohub info --help</code>
 # </div>
 # %%
 # This is the python function called by `iohub info` CLI command
 print_info(data_path, verbose=True)
-
-# Open and inspect the dataset.
 dataset = open_ome_zarr(data_path)
 
 # %% [markdown] tags=[]
@@ -515,12 +515,7 @@ log_batch_jupyter(batch)
 # </div>
 # %% tags=["task"]
 # Here we turn on data augmentation and rerun setup
-# #######################
-# ##### TODO ########
-# #######################
 # HINT: Run dataset.channel_names
-source_channel = ["TODO"]
-target_channel = ["TODO", "TODO"]
 
 augmentations = [
     RandWeightedCropd(
@@ -672,7 +667,7 @@ log_batch_jupyter(augmented_batch)
 # - Start the training <br>
 #
 # <b> Note </b> <br>
-# See ``viscy.unet.networks.Unet2D.Unet2d`` ([source code](https://github.com/mehta-lab/VisCy/blob/7c5e4c1d68e70163cf514d22c475da8ea7dc3a88/viscy/unet/networks/Unet2D.py#L7)) to learn more about the configuration.
+# See ``viscy.translation.engine.VSUNet`` ([source code](https://github.com/mehta-lab/VisCy/blob/main/viscy/translation/engine.py)) and ``viscy.unet.networks.fcmae`` ([source code](https://github.com/mehta-lab/VisCy/blob/main/viscy/unet/networks/fcmae.py)) to learn more about the configuration parameters and FCMAE architecture.
 # </div>
 
 # %% tags=["task"]
@@ -1875,8 +1870,9 @@ plt.show()
 
 # %% tags=["task"]
 # Load a pretrained model for fluorescence to phase translation
-import torch
 from pathlib import Path
+
+import torch
 
 # #######################
 # ##### TODO ########
@@ -1926,8 +1922,9 @@ if fluor2phase_model is not None:
 
 # %% tags=["solution"]
 # Load a pretrained model for fluorescence to phase translation
-import torch
 from pathlib import Path
+
+import torch
 
 # Load the pretrained fluorescence to phase model
 print("Loading pretrained fluorescence-to-phase model...")
@@ -2122,10 +2119,11 @@ plt.show()
 # %% tags=["task"]
 from monai.transforms import (
     Compose,
-    Rotate90d,
     Flipd,
     Invertd,
+    Rotate90d,
 )
+
 
 def create_tta_transforms():
     """Create a list of deterministic transforms for test time augmentation."""
@@ -2227,10 +2225,11 @@ with torch.no_grad():
 # Import additional MONAI transforms for TTA
 from monai.transforms import (
     Compose,
-    Rotate90d,
     Flipd,
     Invertd,
+    Rotate90d,
 )
+
 
 def create_tta_transforms():
     """Create a list of deterministic transforms for test time augmentation."""
@@ -2340,9 +2339,6 @@ with torch.no_grad():
     single_pred_mem = single_pred[0, 1].cpu().numpy()
 
 # %%
-# Calculate metrics for both approaches
-from skimage import metrics
-
 # Single prediction metrics
 ssim_nuc_single = metrics.structural_similarity(target_nuc, single_pred_nuc, data_range=1)
 ssim_mem_single = metrics.structural_similarity(target_mem, single_pred_mem, data_range=1)
@@ -2449,15 +2445,6 @@ Script to visualize the encoder feature maps of a trained model.
 Using PCA to visualize feature maps is inspired by
 https://doi.org/10.48550/arXiv.2304.07193 (Oquab et al., 2023).
 """
-from typing import NamedTuple
-
-from matplotlib.patches import Rectangle
-from monai.networks.layers import GaussianFilter
-from skimage.exposure import rescale_intensity
-from skimage.transform import downscale_local_mean
-from sklearn.decomposition import PCA
-from sklearn.manifold import TSNE
-
 
 def feature_map_pca(feature_map: np.array, n_components: int = 8) -> PCA:
     """
