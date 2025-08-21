@@ -135,8 +135,8 @@ seed_everything(42, workers=True)
 
 # Paths to data and log directory
 top_dir = Path(
-    "~/data"
-).expanduser()  # If this fails, make sure this to point to your data directory in the shared mounting point inside /dlmbl/data
+    "/mnt/efs/aimbl_2025/data"
+).expanduser()  # If this fails, make sure this to point to the download directory
 
 # Path to the training data
 data_path = (

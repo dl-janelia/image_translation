@@ -13,12 +13,12 @@ conda install -y ipykernel nbformat nbconvert black jupytext ipywidgets --name 0
 # install viscy and its dependencies`s in the environment using pip.
 # Find path to the environment - conda activate doesn't work from within shell scripts.
 ENV_PATH=$(conda info --envs | grep 06_image_translation | awk '{print $NF}')
-$ENV_PATH/bin/pip install "viscy[metrics,visual]>=0.3.2,<0.4.0"
+$ENV_PATH/bin/pip install "viscy[metrics,visual]==0.4.0a2"
 $ENV_PATH/bin/pip install "jupyterlab"
 
 # Create the directory structure
 # NOTE: This takes about 20-40 minutes to run. This should be done before the exercise starts
-output_dir=/home/eduardo.hirata/mydata/tmp/ai_2025
+output_dir=/mnt/efs/aimbl_2025
 mkdir -p "$output_dir"/data/06_image_translation/training
 mkdir -p "$output_dir"/data/06_image_translation/test
 mkdir -p "$output_dir"/data/06_image_translation/pretrained_models
