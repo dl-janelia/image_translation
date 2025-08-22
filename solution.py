@@ -932,6 +932,7 @@ phase2fluor_model.to(device)
 #
 # If at any point during the exercise you need to reload your trained model, simply run the following code:
 # </div>
+#
 # ```python
 # # Load the latest checkpoint
 # phase2fluor_model_ckpt = natsorted(glob(
