@@ -1019,12 +1019,6 @@ test_metrics = pd.DataFrame(
 
 # %%
 # Compute metrics directly and plot here.
-def normalize_fov(input: ArrayLike):
-    "Normalizing the fov with zero mean and unit variance"
-    mean = np.mean(input)
-    std = np.std(input)
-    return (input - mean) / std
-
 
 for i, sample in enumerate(
     tqdm(test_data.test_dataloader(), desc="Computing metrics per sample")
@@ -1038,11 +1032,11 @@ for i, sample in enumerate(
     )  # Squeezing batch dimension.
     predicted_image = predicted_image.cpu().numpy().squeeze(0)
     phase_image = phase_image.cpu().numpy().squeeze(0)
-    target_mem = normalize_fov(target_image[1, 0, :, :])
-    target_nuc = normalize_fov(target_image[0, 0, :, :])
+    target_mem = rescale_intensity(target_image[1, 0, :, :], out_range=(0, 1))
+    target_nuc = rescale_intensity(target_image[0, 0, :, :], out_range=(0, 1))
     # slicing channel dimension, squeezing z-dimension.
-    predicted_mem = normalize_fov(predicted_image[1, :, :, :].squeeze(0))
-    predicted_nuc = normalize_fov(predicted_image[0, :, :, :].squeeze(0))
+    predicted_mem = rescale_intensity(predicted_image[1, :, :, :].squeeze(0), out_range=(0, 1))
+    predicted_nuc = rescale_intensity(predicted_image[0, :, :, :].squeeze(0), out_range=(0, 1))
 
     # Compute SSIM and pearson correlation.
     ssim_nuc = metrics.structural_similarity(target_nuc, predicted_nuc, data_range=1)
@@ -1503,6 +1497,12 @@ print(f"  Virtual (pretrained): {len(np.unique(pretrained_mem_seg)) - 1} objects
 # Now let's compute metrics across all FOVs
 
 # %%
+def normalize_fov(input: ArrayLike):
+    "Normalizing the fov with zero mean and unit variance"
+    mean = np.mean(input)
+    std = np.std(input)
+    return (input - mean) / std
+
 # Iterating through the test dataset positions to:
 total_positions = len(positions)
 
@@ -1546,7 +1546,7 @@ with tqdm(total=total_positions, desc="Processing FOVs") as pbar:
             predicted_image_phase2fluor[0, :, :, :].squeeze(0), out_range=(0, 1)
         )
 
-            predicted_mem_pretrained = rescale_intensity(
+        predicted_mem_pretrained = rescale_intensity(
             predicted_image_pretrained[1, :, :, :].squeeze(0), out_range=(0, 1)
         )
         predicted_nuc_pretrained = rescale_intensity(
@@ -1969,20 +1969,6 @@ fluor2phase_model.eval()
 
 # %% tags=["solution"]
 # Test the fluorescence to phase model on our test data
-def normalize_fov(input: ArrayLike, method: str = "median"):
-    "Normalizing the fov with zero mean and unit variance"
-    if method == "median":
-        median = np.median(input)
-        irq = np.percentile(input, 25)
-        iqr = np.percentile(input, 75) - irq
-        return (input - median) / iqr
-    elif method == "mean":
-        mean = np.mean(input)
-        std = np.std(input)
-        return (input - mean) / std
-    else:
-        raise ValueError(f"Invalid method: {method}")
-
 
 source_channel_fluor= ["Nucl","Mem"]
 target_channel_labelfree = ["Phase3D"]
@@ -2270,7 +2256,7 @@ print(f"{'Pearson Membrane':<20} {pearson_mem_single:.3f}     {pearson_mem_tta:.
 fig, axs = plt.subplots(3, 3, figsize=(15, 15))
 
 # First row: Input phase and targets
-axs[0, 0].imshow(phase_image[0].cpu().numpy(), cmap="gray")
+axs[0, 0].imshow(source_tensor[0,0].cpu().numpy(), cmap="gray")
 axs[0, 0].set_title("Input Phase")
 axs[0, 1].imshow(target_nuc[0], cmap="gray")
 axs[0, 1].set_title("Target Nucleus")
@@ -2278,7 +2264,7 @@ axs[0, 2].imshow(target_mem[0], cmap="gray")
 axs[0, 2].set_title("Target Membrane")
 
 # Second row: Single predictions
-axs[1, 0].imshow(phase_image[0].cpu().numpy(), cmap="gray")
+axs[1, 0].imshow(source_tensor[0,0].cpu().numpy(), cmap="gray")
 axs[1, 0].set_title("Input Phase")
 axs[1, 1].imshow(single_pred_nuc[0], cmap="gray")
 axs[1, 1].set_title(f"Single Pred Nucleus\nSSIM: {ssim_nuc_single:.3f}")
@@ -2286,7 +2272,7 @@ axs[1, 2].imshow(single_pred_mem[0], cmap="gray")
 axs[1, 2].set_title(f"Single Pred Membrane\nSSIM: {ssim_mem_single:.3f}")
 
 # Third row: TTA predictions
-axs[2, 0].imshow(phase_image[0].cpu().numpy(), cmap="gray")
+axs[2, 0].imshow(source_tensor[0,0].cpu().numpy(), cmap="gray")
 axs[2, 0].set_title("Input Phase")
 axs[2, 1].imshow(tta_pred_nuc[0], cmap="gray")
 axs[2, 1].set_title(f"TTA Pred Nucleus\nSSIM: {ssim_nuc_tta:.3f}")
