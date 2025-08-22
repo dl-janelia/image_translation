@@ -972,7 +972,7 @@ phase2fluor_model.to(device)
 #
 # ```python
 # phase2fluor_model_ckpt = natsorted(glob(
-#  str(top_dir/"04_image_translation/backup/phase2fluor/version_0/checkpoints/*.ckpt")
+#  str("/mnt/efs/aimbl_2025/data/04_image_translation/pretrained_models/AIMBL_Demo/backup.ckpt")
 # ))[-1]
 # ```
 
@@ -1030,7 +1030,7 @@ for i, sample in enumerate(
     tqdm(test_data.test_dataloader(), desc="Computing metrics per sample")
 ):
     phase_image = sample["source"].to(phase2fluor_model.device)
-    with torch.inference_mode():  # turn off gradient computation.
+    with torch.inference_mode():  
         predicted_image = phase2fluor_model(phase_image)
 
     target_image = (
@@ -1347,15 +1347,6 @@ nuc_cidx = channel_names.index("Nucl")
 mem_cidx = channel_names.index("Mem")
 nuc_label_cidx = channel_names.index("nuclei_segmentation")
 
-
-# %%
-def min_max_scale(image: ArrayLike) -> ArrayLike:
-    "Normalizing the image using min-max scaling"
-    min_val = image.min()
-    max_val = image.max()
-    return (image - min_val) / (max_val - min_val)
-
-
 # %% [markdown]
 # ## Visualize segmentation comparison: Fluorescence vs Virtual Staining vs Pretrained
 # Let's compare nucleus and membrane segmentation across all three models
@@ -1382,30 +1373,30 @@ x_start = max(0, center_x - crop_size // 2)
 x_end = min(sample_nucleus.shape[3], center_x + crop_size // 2)
 
 # Crop fluorescence data
-sample_nucleus_crop = min_max_scale(sample_nucleus[0, 0, y_start:y_end, x_start:x_end])
-sample_membrane_crop = min_max_scale(
-    sample_membrane[0, 0, y_start:y_end, x_start:x_end]
+sample_nucleus_crop = rescale_intensity(sample_nucleus[0, 0, y_start:y_end, x_start:x_end], out_range=(0, 1))
+sample_membrane_crop = rescale_intensity(
+    sample_membrane[0, 0, y_start:y_end, x_start:x_end], out_range=(0, 1)
 )
 
 # Generate virtual stained data from phase (trained model)
 sample_phase_tensor = torch.tensor(sample_phase, dtype=torch.float32).to(device)
 with torch.no_grad():
     predicted_image = phase2fluor_model(sample_phase_tensor)
-predicted_nuc_crop = min_max_scale(
-    predicted_image.cpu().numpy()[0, 0, 0, y_start:y_end, x_start:x_end]
+predicted_nuc_crop = rescale_intensity(
+    predicted_image.cpu().numpy()[0, 0, 0, y_start:y_end, x_start:x_end], out_range=(0, 1)
 )
-predicted_mem_crop = min_max_scale(
-    predicted_image.cpu().numpy()[0, 1, 0, y_start:y_end, x_start:x_end]
+predicted_mem_crop = rescale_intensity(
+    predicted_image.cpu().numpy()[0, 1, 0, y_start:y_end, x_start:x_end], out_range=(0, 1)
 )
 
 # Generate virtual stained data from pretrained model
 with torch.no_grad():
     predicted_image_pretrained = pretrained_phase2fluor(sample_phase_tensor)
-predicted_nuc_pretrained_crop = min_max_scale(
-    predicted_image_pretrained.cpu().numpy()[0, 0, 0, y_start:y_end, x_start:x_end]
+    predicted_nuc_pretrained_crop = rescale_intensity(
+    predicted_image_pretrained.cpu().numpy()[0, 0, 0, y_start:y_end, x_start:x_end], out_range=(0, 1)
 )
-predicted_mem_pretrained_crop = min_max_scale(
-    predicted_image_pretrained.cpu().numpy()[0, 1, 0, y_start:y_end, x_start:x_end]
+predicted_mem_pretrained_crop = rescale_intensity(
+    predicted_image_pretrained.cpu().numpy()[0, 1, 0, y_start:y_end, x_start:x_end], out_range=(0, 1)
 )
 
 # Run segmentation on all nuclei
@@ -1544,22 +1535,22 @@ with tqdm(total=total_positions, desc="Processing FOVs") as pbar:
         predicted_image_pretrained = predicted_image_pretrained.cpu().numpy().squeeze(0)
         phase_image = phase_image.cpu().numpy().squeeze(0)
 
-        target_mem = min_max_scale(target_membrane[0, 0])
-        target_nuc = min_max_scale(target_nucleus[0, 0])
+        target_mem = rescale_intensity(target_membrane[0, 0], out_range=(0, 1))
+        target_nuc = rescale_intensity(target_nucleus[0, 0], out_range=(0, 1))
 
         # Normalizing the dataset using min-max scaling
-        predicted_mem_phase2fluor = min_max_scale(
-            predicted_image_phase2fluor[1, :, :, :].squeeze(0)
+        predicted_mem_phase2fluor = rescale_intensity(
+            predicted_image_phase2fluor[1, :, :, :].squeeze(0), out_range=(0, 1)
         )
-        predicted_nuc_phase2fluor = min_max_scale(
-            predicted_image_phase2fluor[0, :, :, :].squeeze(0)
+        predicted_nuc_phase2fluor = rescale_intensity(
+            predicted_image_phase2fluor[0, :, :, :].squeeze(0), out_range=(0, 1)
         )
 
-        predicted_mem_pretrained = min_max_scale(
-            predicted_image_pretrained[1, :, :, :].squeeze(0)
+            predicted_mem_pretrained = rescale_intensity(
+            predicted_image_pretrained[1, :, :, :].squeeze(0), out_range=(0, 1)
         )
-        predicted_nuc_pretrained = min_max_scale(
-            predicted_image_pretrained[0, :, :, :].squeeze(0)
+        predicted_nuc_pretrained = rescale_intensity(
+            predicted_image_pretrained[0, :, :, :].squeeze(0), out_range=(0, 1)
         )
 
         #######  Pixel-based Metrics ############
@@ -1841,9 +1832,7 @@ plt.show()
 # %% [markdown] tags=[]
 # # Part 2.5: Inverse Transformation - Fluorescence to Phase
 # 
-# In this section, we will explore the **inverse transformation**: using fluorescence images 
-# (nuclei + membrane) to predict the phase image. This will help us understand:
-# 
+
 # - How much information is lost in the phase to fluorescence transformation
 # - Why perfect reconstruction might not be possible
 # - Multiple phase patterns can produce similar fluorescence signals
@@ -1854,18 +1843,26 @@ plt.show()
 # <div class="alert alert-info">
 # 
 # ### Task 2.5: Load and Evaluate the Inverse Model (Fluorescence → Phase)
+# In this section, we will explore the **inverse transformation**: using fluorescence images 
+# (nuclei + membrane) to predict the phase image. This will help us understand:
 # 
-# **Learning Goals:**
-# - Understand the concept of fluorescence to phase transformations in image translation
-# - Load a pretrained model for the reverse task (fluor → phase)
-# - Compare input fluorescence channels with predicted phase
-# - Analyze why the phase prediction is not perfect
+# <h3>Learning Goals:</h3>
+# <ul>
+# <li> Understand the concept of fluorescence to phase transformations in image translation </li>
+# <li> Load a pretrained model for the reverse task (fluor → phase) </li>
+# <li> Compare input fluorescence channels with predicted phase </li>
+# <li> Analyze why the phase prediction is not perfect </li>
+# </ul>
+# </div>
+#%% [markdown] tags=[]
+# <div class="alert alert-warning">
 # 
-# **Key Questions to Explore:**
-# - Does the predicted phase look realistic?
-# - What structures are preserved vs. lost?
-# - Why might this transformation be more challenging than phase → fluorescence?
-# 
+# <h3>Questions</h3>
+# <ul>
+# <li> Does the predicted phase look realistic? </li>   
+# <li> What structures are preserved vs. lost? </li>
+# <li> Why might this transformation be more challenging than phase → fluorescence? </li>
+# </ul>
 # </div>
 
 # %% tags=["task"]
@@ -1886,39 +1883,63 @@ import torch
 print("Loading pretrained fluorescence-to-phase model...")
 
 # TODO: Replace this with actual model loading code
-fluor2phase_model_path = ...
-fluor2phase_model = ...
+fluor2phase_model_path = ...  # Path to the pretrained fluor2phase model checkpoint
+fluor2phase_config = dict(
+    in_channels=...,  # Nuclei + Membrane channels
+    out_channels=...,  # Phase channel 
+    encoder_blocks=[3, 3, 9, 3],
+    dims=[96, 192, 384, 768],
+    decoder_conv_blocks=2,
+    stem_kernel_size=(1, 2, 2),
+    in_stack_depth=1,
+)
+fluor2phase_model = VSUNet.load_from_checkpoint(fluor2phase_model_path, model_config=fluor2phase_config, architecture="fcmae")
+assert fluor2phase_model is not None, "Fluorescence to phase model not loaded. Check the model config,and the path to the model checkpoint."
+fluor2phase_model.eval()
 
 # %% tags=["task"]
 # Test the fluorescence to phase model on our test data
-if fluor2phase_model is not None:
-    fluor2phase_model.eval()
+
+source_channel_fluor= ["TODO","TODO"]
+target_channel_labelfree = ["TODO"]
+
+test_data_fluor2phase = HCSDataModule(
+    test_data_path,
+    source_channel=source_channel_fluor,
+    target_channel=target_channel_labelfree,
+    z_window_size=1,
+    batch_size=1,
+    num_workers=8,
+)
+test_data_fluor2phase.setup("test")
+
     
-    # Get a test sample
-    sample = next(iter(test_data.test_dataloader()))
-    
-    # #######################
-    # ##### TODO ########
-    # #######################
-    # TODO: Extract the input channels (fluorescence) and target (phase)
-    # HINT: Input should be nuclei and membrane channels concatenated
-    # HINT: Target should be the original phase image
-    
-    fluor_input = None  # TODO: Concatenate nuclei and membrane channels
-    phase_target = None  # TODO: Extract phase channel
-    
-    # TODO: Make prediction with the fluorescence to phase model
-    with torch.no_grad():
-        predicted_phase = None  # TODO: fluor2phase_model(fluor_input)
-    
-    # #######################
-    # ##### TODO ########
-    # #######################
-    # TODO: Calculate metrics between predicted and target phase
-    # HINT: Use SSIM and Pearson correlation as before
-    
-    # TODO: Visualize the comparison
-    print("TODO: Implement fluorescence to phase prediction and visualization")
+# Get a test sample
+sample = next(iter(test_data_fluor2phase.test_dataloader()))
+
+# #######################
+# ##### TODO ########
+# #######################
+# TODO: Extract the input channels (fluorescence) and target (phase)
+# HINT: Input should be nuclei and membrane channels concatenated
+# HINT: Target should be the original phase image
+# HINT: Print the keys of the `sample` dictionary
+
+fluor_input = None  # TODO: Concatenate nuclei and membrane channels
+phase_target = None  # TODO: Extract phase channel
+
+# TODO: Make prediction with the fluorescence to phase model
+with torch.no_grad():
+    predicted_phase = None  # TODO: fluor2phase_model(fluor_input)
+
+# #######################
+# ##### TODO ########
+# #######################
+# TODO: Calculate metrics between predicted and target phase
+# HINT: Use SSIM and Pearson correlation as before
+
+# TODO: Visualize the comparison
+print("TODO: Implement fluorescence to phase prediction and visualization")
 
 # %% tags=["solution"]
 # Load a pretrained model for fluorescence to phase translation
@@ -1942,53 +1963,65 @@ fluor2phase_config = dict(
     decoder_conv_blocks=2,
     stem_kernel_size=(1, 2, 2),
     in_stack_depth=1,
-    pretraining=False,
 )
 
 # Create the fluorescence to phase model architecture
-fluor2phase_model = VSUNet(
-    architecture="UNeXt2_2D",
-    model_config=fluor2phase_config.copy(),
-    loss_function=MixedLoss(),
-    lr=1e-4,
-)
-
 print("Fluorescence-to-phase model created (note: using untrained model for demonstration)")
 print("In practice, load a pretrained checkpoint for meaningful results")
 
-print('Loading pretrained fluorescence-to-phase model...')
+print('\nLoading pretrained fluorescence-to-phase model...')
 fluor2phase_model_path = Path('/mnt/efs/aimbl_2025/data/04_image_translation/pretrained_models/AIMBL_Demo/fluor2phase_step668.ckpt')
 assert fluor2phase_model_path.exists(), "Fluorescence-to-phase model checkpoint not found. Please check the path."
-fluor2phase_model = VSUNet.load_from_checkpoint(fluor2phase_model_path)
-
+fluor2phase_model = VSUNet.load_from_checkpoint(fluor2phase_model_path, model_config=fluor2phase_config, architecture="fcmae")
+fluor2phase_model.eval()
 
 # %% tags=["solution"]
 # Test the fluorescence to phase model on our test data
-fluor2phase_model.eval()
+def normalize_fov(input: ArrayLike, method: str = "median"):
+    "Normalizing the fov with zero mean and unit variance"
+    if method == "median":
+        median = np.median(input)
+        irq = np.percentile(input, 25)
+        iqr = np.percentile(input, 75) - irq
+        return (input - median) / iqr
+    elif method == "mean":
+        mean = np.mean(input)
+        std = np.std(input)
+        return (input - mean) / std
+    else:
+        raise ValueError(f"Invalid method: {method}")
+
+
+source_channel_fluor= ["Nucl","Mem"]
+target_channel_labelfree = ["Phase3D"]
+
+test_data_fluor2phase = HCSDataModule(
+    test_data_path,
+    source_channel=source_channel_fluor,
+    target_channel=target_channel_labelfree,
+    z_window_size=1,
+    batch_size=1,
+    num_workers=8,
+)
+test_data_fluor2phase.setup("test")
 
 # Get a test sample  
-sample = next(iter(test_data.test_dataloader()))
+sample = next(iter(test_data_fluor2phase.test_dataloader()))
 
 # Extract input channels (fluorescence nuclei and membrane) and target (phase)
-nuc_channel = sample[target_channel[0]] 
-mem_channel = sample[target_channel[1]]  
-phase_target = sample[source_channel[0]]
+fluor_input = sample['source'].to(fluor2phase_model.device)
+target_image = sample['target'].cpu().numpy().squeeze(0)
 
-fluor_input = torch.cat([nuc_channel, mem_channel], dim=1) 
-
-print(f"Fluorescence input shape: {fluor_input.shape}")
-print(f"Phase target shape: {phase_target.shape}")
-
+# Run inference
 with torch.no_grad():
-    predicted_phase = fluor2phase_model(fluor_input)
+    predicted_phase = fluor2phase_model(fluor_input)[0]
 
-phase_target_np = phase_target[0, 0].cpu().numpy()
-predicted_phase_np = predicted_phase[0, 0].cpu().numpy()
-nuc_input_np = nuc_channel[0, 0].cpu().numpy()
-mem_input_np = mem_channel[0, 0].cpu().numpy()
-
-ssim_phase = metrics.structural_similarity(phase_target_np, predicted_phase_np, data_range=1)
-pearson_phase = np.corrcoef(phase_target_np.flatten(), predicted_phase_np.flatten())[0, 1]
+fluor_input = fluor_input.cpu().numpy()
+predicted_image = predicted_phase.cpu().numpy().squeeze(0)
+target_phase = rescale_intensity(target_image[0, 0], out_range=(0, 1))
+predicted_phase = rescale_intensity(predicted_image[0,0], out_range=(0, 1))
+ssim_phase = metrics.structural_similarity(target_phase,predicted_phase , data_range=1)
+pearson_phase = np.corrcoef(target_phase.flatten(), predicted_phase.flatten())[0, 1]
 
 print(f"Phase Reconstruction Metrics:")
 print(f"SSIM: {ssim_phase:.3f}")
@@ -1998,62 +2031,23 @@ print(f"Pearson Correlation: {pearson_phase:.3f}")
 # Visualize the fluorescence to phase transformation results
 fig, axs = plt.subplots(2, 3, figsize=(15, 10))
 
-axs[0, 0].imshow(nuc_input_np, cmap="gray")
+axs[0, 0].imshow(fluor_input[0,0,0], cmap="gray")
 axs[0, 0].set_title("Input: Nuclei Channel")
-axs[0, 1].imshow(mem_input_np, cmap="gray")
+axs[0, 1].imshow(fluor_input[0,1,0], cmap="gray")
 axs[0, 1].set_title("Input: Membrane Channel")
-axs[0, 2].imshow(nuc_input_np + mem_input_np, cmap="gray")
+axs[0, 2].imshow(fluor_input[0,0,0] + fluor_input[0,1,0], cmap="gray")
 axs[0, 2].set_title("Combined Fluorescence\n(Nuclei + Membrane)")
 
-axs[1, 0].imshow(phase_target_np, cmap="gray")
+axs[1, 0].imshow(target_phase, cmap="gray")
 axs[1, 0].set_title("Target Phase Image")
-axs[1, 1].imshow(predicted_phase_np, cmap="gray")
+axs[1, 1].imshow(predicted_phase, cmap="gray")
 axs[1, 1].set_title(f"Predicted Phase\nSSIM: {ssim_phase:.3f}")
-axs[1, 2].imshow(np.abs(phase_target_np - predicted_phase_np), cmap="hot")
+axs[1, 2].imshow(np.abs(target_phase - predicted_phase), cmap="magma")
 axs[1, 2].set_title("Absolute Difference\n|Target - Predicted|")
 
 for ax in axs.flat:
     ax.set_xticks([])
     ax.set_yticks([])
-
-plt.tight_layout()
-plt.show()
-
-# %%
-# Compare phase -> fluorescence and fluorescence -> phase transformations side by side
-fig, axs = plt.subplots(2, 4, figsize=(20, 10))
-
-with torch.no_grad():
-    phase2fluor_pred = phase2fluor_model(phase_target)
-    phase2fluor_nuc = phase2fluor_pred[0, 0].cpu().numpy()
-    phase2fluor_mem = phase2fluor_pred[0, 1].cpu().numpy()
-
-axs[0, 0].imshow(phase_target_np, cmap="gray")
-axs[0, 0].set_title("Original Phase")
-axs[0, 1].imshow(phase2fluor_nuc, cmap="gray")
-axs[0, 1].set_title("Predicted Nuclei\n(from Phase)")
-axs[0, 2].imshow(phase2fluor_mem, cmap="gray")
-axs[0, 2].set_title("Predicted Membrane\n(from Phase)")
-axs[0, 3].imshow(phase2fluor_nuc + phase2fluor_mem, cmap="gray")
-axs[0, 3].set_title("Combined Prediction")
-
-axs[1, 0].imshow(nuc_input_np + mem_input_np, cmap="gray")
-axs[1, 0].set_title("Combined Fluorescence\n(Input)")
-axs[1, 1].imshow(predicted_phase_np, cmap="gray")
-axs[1, 1].set_title("Predicted Phase\n(from Fluorescence)")
-axs[1, 2].imshow(phase_target_np, cmap="gray")
-axs[1, 2].set_title("Original Phase\n(Target)")
-axs[1, 3].imshow(np.abs(phase_target_np - predicted_phase_np), cmap="hot")
-axs[1, 3].set_title("Reconstruction Error")
-
-for ax in axs.flat:
-    ax.set_xticks([])
-    ax.set_yticks([])
-
-axs[0, 0].text(-0.1, 0.5, 'Phase to Fluorescence\n(Phase → Fluor)', transform=axs[0, 0].transAxes, 
-               fontsize=14, fontweight='bold', ha='right', va='center', rotation=90)
-axs[1, 0].text(-0.1, 0.5, 'Fluorescence to Phase\n(Fluor → Phase)', transform=axs[1, 0].transAxes,
-               fontsize=14, fontweight='bold', ha='right', va='center', rotation=90)
 
 plt.tight_layout()
 plt.show()
@@ -2079,24 +2073,28 @@ plt.show()
 # This exploration reveals fundamental limitations in image-to-image translation:
 # - Phase images contain rich structural information about unlabeled cellular components
 # - Fluorescence only captures specific labeled structures (nuclei, membranes,etc.)
-# - The fluorescence to phase model is an **ill-posed problem** - multiple phase images could produce similar fluorescence patterns
+# - The fluorescence to phase model is an ill-posed problem - multiple phase images could produce similar fluorescence patterns
 # - Models can only predict based on correlations learned during training
 # - Structural details not correlated with fluorescence signals cannot be recovered
 
 # </div>
 
 # %% [markdown] tags=[]
-# # Bonus: Test Time Augmentation (TTA)
+# <div class="alert alert-info">
+# <h3>Bonus: Test Time Augmentation (TTA)</h3>
 # 
 # Test Time Augmentation is a technique where you apply multiple augmentations to a single test image,
 # make predictions on each augmented version, and then combine the results (usually by averaging).
 # This can often improve model performance by reducing prediction variance.
 #
 # In this bonus section, we will:
-# - Implement test time augmentation using MONAI transforms
-# - Apply rotations and flips at test time
-# - Compare the performance with and without TTA using our metrics
-# - Visualize the improvements in prediction quality
+# <ul>
+# <li>  Implement test time augmentation using MONAI transforms </li>
+# <li> Apply rotations and flips at test time </li>
+# <li> Compare the performance with and without TTA using our metrics </li>
+# <li> Visualize the improvements in prediction quality </li>
+# </ul>
+# </div>
 
 # %% [markdown] tags=[]
 # <div class="alert alert-info">
@@ -2205,9 +2203,9 @@ print("Applying Test Time Augmentation with MONAI transforms...")
 
 # Get a test sample
 sample = next(iter(test_data.test_dataloader()))
-phase_image = sample[source_channel[0]]
-target_nuc = sample[target_channel[0]].numpy().squeeze()
-target_mem = sample[target_channel[1]].numpy().squeeze()
+phase_image = sample['source'][0,0] 
+target_nuc = sample['target'][0,0].numpy().squeeze()
+target_mem = sample['target'][0,1].numpy().squeeze()
 
 # Create TTA transforms
 tta_transforms = create_tta_transforms()
@@ -2279,12 +2277,11 @@ def apply_tta_prediction(model, sample, transforms):
     
     for transform in transforms:
         # Apply transform to the sample
-        transformed_sample = transform(sample.copy())
-        phase_input = transformed_sample[source_channel[0]]
+        transformed_sample = transform(sample).to(model.device)
         
         # Make prediction
         with torch.no_grad():
-            pred = model(phase_input)
+            pred = model(transformed_sample)
             pred_nuc = pred[0, 0].cpu().numpy()
             pred_mem = pred[0, 1].cpu().numpy()
         
@@ -2322,15 +2319,15 @@ print("Applying Test Time Augmentation with MONAI transforms...")
 
 # Get a test sample
 sample = next(iter(test_data.test_dataloader()))
-phase_image = sample[source_channel[0]]
-target_nuc = sample[target_channel[0]].numpy().squeeze()
-target_mem = sample[target_channel[1]].numpy().squeeze()
+phase_image = sample['source'][0,0]
+target_nuc = sample['target'][0,0].numpy().squeeze()
+target_mem = sample['target'][0,1].numpy().squeeze()
 
 # Create TTA transforms
 tta_transforms = create_tta_transforms()
 
 # Apply TTA
-tta_pred_nuc, tta_pred_mem = apply_tta_prediction(phase2fluor_model, sample, tta_transforms)
+tta_pred_nuc, tta_pred_mem = apply_tta_prediction(phase2fluor_model, sample['source'], tta_transforms)
 
 # Compare with single prediction (no TTA)
 with torch.no_grad():
