@@ -956,6 +956,42 @@ phase2fluor_model.to(device)
 #     accelerator='gpu'
 # )
 # ```
+
+# If you weren't able to train or training didn't complete please run the following lines to load the latest checkpoint <br>
+#
+# ```python
+# phase2fluor_model_ckpt = natsorted(glob(
+#    str(top_dir / "04_image_translation/logs/phase2fluor/version*/checkpoints/*.ckpt")
+# ))[-1]
+# ```
+# <br>
+# NOTE: if their model didn't go past epoch 5, lost their checkpoint, or didnt train anything.
+# Run the following:
+#
+# ```python
+# phase2fluor_model_ckpt = "/mnt/efs/aimbl_2025/data/04_image_translation/pretrained_models/AIMBL_Demo/backup.ckpt"
+# ```
+
+# ```python
+# phase2fluor_config = dict(
+#     in_channels=1,
+#     out_channels=2,
+#     encoder_blocks=[3, 3, 9, 3],
+#     dims=[96, 192, 384, 768],
+#     decoder_conv_blocks=2,
+#     stem_kernel_size=(1, 2, 2),
+#     in_stack_depth=1,
+#     pretraining=False,
+# )
+# Load the model checkpoint
+# phase2fluor_model = VSUNet.load_from_checkpoint(
+#     phase2fluor_model_ckpt,
+#     architecture="UNeXt2_2D",
+#     model_config = phase2fluor_config,
+#     accelerator='gpu'
+# )
+# ````
+# </div>
 # %%
 # Setup the test data module.
 test_data_path = top_dir / "04_image_translation/test/a549_hoechst_cellmask_test.zarr"
@@ -991,17 +1027,18 @@ for i, sample in enumerate(
     phase_image = sample["source"].to(phase2fluor_model.device)
     with torch.inference_mode():  
         predicted_image = phase2fluor_model(phase_image)
-
+    
+    # Squeezing batch dimension.
     target_image = (
         sample["target"].cpu().numpy().squeeze(0)
-    )  # Squeezing batch dimension.
+    )  
     predicted_image = predicted_image.cpu().numpy().squeeze(0)
     phase_image = phase_image.cpu().numpy().squeeze(0)
     
     target_mem = normalize_fov(target_image[1, 0, :, :])
     target_nuc = normalize_fov(target_image[0, 0, :, :])
-    predicted_nuc = normalize_fov(predicted_image[0, :, :, :].squeeze(0))
-    predicted_mem = normalize_fov(predicted_image[1, :, :, :].squeeze(0))
+    predicted_nuc = normalize_fov(predicted_image[0,0, :, :])
+    predicted_mem = normalize_fov(predicted_image[1,0, :, :])
     
     # Compute pearson correlation.
     pearson_nuc = np.corrcoef(target_nuc.flatten(), predicted_nuc.flatten())[0, 1]
@@ -1177,9 +1214,7 @@ phase2fluor_model_ckpt = natsorted(
 
 # NOTE: if their model didn't go past epoch 5, lost their checkpoint, or didnt train anything.
 # Uncomment the next lines
-# phase2fluor_model_ckpt = natsorted(glob(
-#  str("/mnt/efs/aimbl_2025/data/04_image_translation/pretrained_models/AIMBL_Demo/backup.ckpt")
-# ))[-1]
+# phase2fluor_model_ckpt = "/mnt/efs/aimbl_2025/data/04_image_translation/pretrained_models/AIMBL_Demo/backup.ckpt"
 
 phase2fluor_config = dict(
     in_channels=1,
@@ -1334,7 +1369,7 @@ sample_membrane = sample_pos.data[0, mem_cidx : mem_cidx + 1, Z_slice]
 
 # Crop 300x300 pixels from center
 center_y, center_x = sample_nucleus.shape[2] // 2, sample_nucleus.shape[3] // 2
-crop_size = 300
+crop_size = 300  #TODO: change this to see different sizes of crops
 y_start = max(0, center_y - crop_size // 2)
 y_end = min(sample_nucleus.shape[2], center_y + crop_size // 2)
 x_start = max(0, center_x - crop_size // 2)
@@ -1348,7 +1383,7 @@ sample_membrane_crop = rescale_intensity(
 
 # Generate virtual stained data from phase (trained model)
 sample_phase_tensor = torch.tensor(sample_phase, dtype=torch.float32)
-with torch.no_grad():
+with torch.inference_mode():
     predicted_image = phase2fluor_model(sample_phase_tensor.to(phase2fluor_model.device))
 predicted_nuc_crop = rescale_intensity(
     predicted_image.cpu().numpy()[0, 0, 0, y_start:y_end, x_start:x_end], out_range=(0, 1)
@@ -1358,7 +1393,7 @@ predicted_mem_crop = rescale_intensity(
 )
 
 # Generate virtual stained data from pretrained model
-with torch.no_grad():
+with torch.inference_mode():
     predicted_image_pretrained = pretrained_phase2fluor(sample_phase_tensor.to(pretrained_phase2fluor.device))
     predicted_nuc_pretrained_crop = rescale_intensity(
     predicted_image_pretrained.cpu().numpy()[0, 0, 0, y_start:y_end, x_start:x_end], out_range=(0, 1)
@@ -1474,13 +1509,19 @@ print(f"  Virtual (pretrained): {len(np.unique(pretrained_mem_seg)) - 1} objects
 
 # Iterating through the test dataset positions to:
 total_positions = len(positions)
-
+CROP_SIZE = 768
 # Initializing the progress bar with the total number of positions
 with tqdm(total=total_positions, desc="Processing FOVs") as pbar:
     # Iterating through the test dataset positions
     for fov, pos in positions:
         T, C, Z, Y, X = pos.data.shape
         Z_slice = slice(Z // 2, Z // 2 + 1)
+        if CROP_SIZE is not None:
+            Y_slice, X_slice = slice(Y // 2-CROP_SIZE//2, Y // 2 + CROP_SIZE//2 ), slice(X // 2-CROP_SIZE//2, X // 2 + CROP_SIZE//2 )
+            Y = CROP_SIZE
+            X = CROP_SIZE
+        else:
+            Y_slice, X_slice = slice(None), slice(None)
         # Getting the arrays and the center slices
         phase_image = pos.data[:, phase_cidx : phase_cidx + 1, Z_slice]
         target_nucleus = pos.data[0, nuc_cidx : nuc_cidx + 1, Z_slice]
@@ -1895,16 +1936,28 @@ fluor_input = ...  # TODO: Source
 target_phase = ...  # TODO: Target
 
 # TODO: Make prediction with the fluorescence to phase model
-with torch.no_grad():
+# NOTE: The `fluor2phase_model`, returns a tuple. Select the first item with `[0]`  
+with torch.inference_mode():
     predicted_phase = ... 
 
 # #######################
 # ##### TODO ########
 # #######################
-# TODO: Calculate metrics between predicted and target phase
+# Calculate metrics between predicted and target phase
 # HINT: Use SSIM and Pearson correlation as before
 
-# TODO: Visualize the comparison by plotting the images side by side
+# TODO: Normalize data range to 0-1
+###### YOUR CODE HERE ######  
+
+# TODO: Calculate SSIM and Pearson correlation
+###### YOUR CODE HERE ######  
+
+# TODO: Print metrics
+print(f"Phase Reconstruction Metrics:")
+print(f"SSIM: {ssim_phase:.3f}")
+print(f"Pearson Correlation: {pearson_phase:.3f}")
+
+
 
 # %% tags=["solution"]
 # Load a pretrained model for fluorescence to phase translation
@@ -1964,7 +2017,7 @@ fluor_input = sample['source'].to(fluor2phase_model.device)
 target_image = sample['target'].cpu().numpy().squeeze(0)
 
 # Run inference
-with torch.no_grad():
+with torch.inference_mode():
     predicted_phase = fluor2phase_model(fluor_input)[0]
 
 fluor_input = fluor_input.cpu().numpy()
@@ -1980,7 +2033,7 @@ print(f"Pearson Correlation: {pearson_phase:.3f}")
 
 # %% 
 # Visualize the fluorescence to phase transformation results
-# TODO: Visualize the fluorescence to phase transformation results. Modify is as you see fit
+# TODO: Visualize the fluorescence to phase transformation results. Modify is as you see fit.
 
 fig, axs = plt.subplots(2, 3, figsize=(15, 10))
 
@@ -2024,12 +2077,16 @@ plt.show()
 # <h3>Key Insights from Fluorescence to Phase Model</h3>
 # 
 # This exploration reveals fundamental limitations in image-to-image translation:
-# - Phase images contain rich structural information about unlabeled cellular components
-# - Fluorescence only captures specific labeled structures (nuclei, membranes,etc.)
-# - The fluorescence to phase model is an ill-posed problem - multiple phase images could produce similar fluorescence patterns
-# - Models can only predict based on correlations learned during training
-# - Structural details not correlated with fluorescence signals cannot be recovered
-
+# <ul>
+# <li> Phase images contain rich structural information about unlabeled cellular components </li>
+# <li> Fluorescence only captures specific labeled structures (nuclei, membranes,etc.) </li>
+# <li> The fluorescence to phase model is an ill-posed problem - multiple phase images could produce similar fluorescence patterns </li>
+# <li> Models can only predict based on correlations learned during training </li>
+# <li> Structural details not correlated with fluorescence signals cannot be recovered </li>
+# </ul>
+#
+# #### Now, let's return to the `phase2fluor` model!
+# 
 # </div>
 
 # %% [markdown] tags=[]
@@ -2048,6 +2105,10 @@ plt.show()
 #
 # Reference: N.Moshkov (2020) https://www.nature.com/articles/s41598-020-61808-3
 #
+# Hint: You can use the `Rotate90` and `Flip` transforms from MONAI.
+# Example forward transform: `Rotate90(k=1, spatial_axes=(-1, -2))`
+# Example inverse transform: `Rotate90(k=3, spatial_axes=(-1, -2))`
+#
 # </div>
 
 # %% tags=["task"]
@@ -2064,7 +2125,7 @@ target_nuc = target_tensor[0,0].cpu().numpy()
 target_mem = target_tensor[0,1].cpu().numpy()
 
 # Saving the single prediction without TTA for later comparison
-with torch.no_grad():
+with torch.inference_mode():
     single_pred = phase2fluor_model(source_tensor)
     single_pred_nuc = single_pred[0, 0].cpu().numpy()
     single_pred_mem = single_pred[0, 1].cpu().numpy()
@@ -2094,7 +2155,7 @@ for forward_transform, inverse_transform in transform_list:
     augmented_source = torch.stack(augmented_batch).to(source_tensor.device)
 
     #TODO: Run inference on augmented input
-    with torch.no_grad():
+    with torch.inference_mode():
         ###### YOUR CODE HERE ######
         augmented_pred = ...
 
@@ -2119,85 +2180,26 @@ tta_pred_mem = ...
 #%% tags=["task"]
 # TODO: Compare TTA results with single prediction
 # Calculate metrics (SSIM, Pearson correlation) for both approaches. Do not forget to normalize the data range to 0-1.
-###### YOUR CODE HERE ######
 
-#%% tags=["task"]
-# Visualize the comparison
-# TODO: Visualize the comparisons of the predictions with and without TTA.
-###### YOUR CODE HERE ######
+# TODO Normalize data range to 0-1  
+###### YOUR CODE HERE ######  
 
+# TODO Calculate metrics  
+###### YOUR CODE HERE ######  
 
-# %% tags=["solution"]
-# Import additional MONAI transforms for TTA
-from monai.transforms import (
-    Flip,
-    Rotate90,
-)
+# TODO # TTA prediction metrics  
+###### YOUR CODE HERE ######  
 
-# Get a test sample
-sample = next(iter(test_data.test_dataloader()))
-source_tensor = sample['source'].to(phase2fluor_model.device)
-target_tensor = sample['target']
-target_nuc = target_tensor[0,0].cpu().numpy()
-target_mem = target_tensor[0,1].cpu().numpy()
-
-predictions = []
-
-# Original prediction without augmentation
-with torch.no_grad():
-    original_pred = phase2fluor_model(source_tensor)
-    predictions.append(original_pred.cpu().numpy())
-
-# Define the TTA transforms and the inverse transforms as a list of tuples (forward, inverse)
-transform_list = [
-    (Rotate90(k=1, spatial_axes=(-1, -2)), Rotate90(k=3, spatial_axes=(-1, -2))),
-    (Rotate90(k=2, spatial_axes=(-1, -2)), Rotate90(k=2, spatial_axes=(-1, -2))), 
-    (Rotate90(k=3, spatial_axes=(-1, -2)), Rotate90(k=1, spatial_axes=(-1, -2))),
-    (Flip(spatial_axis=-2), Flip(spatial_axis=-2)) ,
-    (Flip(spatial_axis=-1), Flip(spatial_axis=-1))
-]
-
-for forward_transform, inverse_transform in transform_list:
-    # Apply transform to each sample in batch
-    augmented_batch = []
-    for i in range(source_tensor.shape[0]):
-        img = source_tensor[i].cpu().numpy()
-        aug_img = forward_transform(img)
-        augmented_batch.append(aug_img)
-    augmented_source = torch.stack(augmented_batch).to(source_tensor.device)
-    
-    # Run inference on augmented input
-    with torch.no_grad():
-        augmented_pred = phase2fluor_model(augmented_source)
-    
-    # De-apply transform to prediction
-    deaugmented_batch = []
-    for i in range(augmented_pred.shape[0]):
-        pred = augmented_pred[i].cpu().numpy()
-        deaug_pred = inverse_transform(pred)
-        deaugmented_batch.append(deaug_pred)
-    deaugmented_pred = torch.stack(deaugmented_batch)
-    
-    predictions.append(deaugmented_pred.cpu().numpy())
-
-# Average all predictions
-averaged_pred = np.stack(predictions).mean(axis=0)
-
-# Extract nucleus and membrane predictions
-tta_pred_nuc = averaged_pred[0, 0]
-tta_pred_mem = averaged_pred[0, 1]
-
-# Compare with single prediction (no TTA)
-with torch.no_grad():
-    single_pred = phase2fluor_model(source_tensor)
-    single_pred_nuc = single_pred[0, 0].cpu().numpy()
-    single_pred_mem = single_pred[0, 1].cpu().numpy()
+# Print comparison  
+print("\nMetrics Comparison:")  
+print(f"{'Metric':<20} {'Single':<10} {'TTA':<10} {'Improvement':<12}")  
+print("-" * 55)  
+print(f"{'SSIM Nucleus':<20} {ssim_nuc_single:.3f}     {ssim_nuc_tta:.3f}     {ssim_nuc_tta-ssim_nuc_single:+.3f}")  
+print(f"{'SSIM Membrane':<20} {ssim_mem_single:.3f}     {ssim_mem_tta:.3f}     {ssim_mem_tta-ssim_mem_single:+.3f}")  
+print(f"{'Pearson Nucleus':<20} {pearson_nuc_single:.3f}     {pearson_nuc_tta:.3f}     {pearson_nuc_tta-pearson_nuc_single:+.3f}")  
+print(f"{'Pearson Membrane':<20} {pearson_mem_single:.3f}     {pearson_mem_tta:.3f}     {pearson_mem_tta-pearson_mem_single:+.3f}")  
 
 # %% tags=["solution"]
-# Single prediction metrics
-# Calculate metrics (SSIM, Pearson correlation) for both approaches. Do not forget to normalize the data range to 0-1.
-
-###### SOLUTION ######
 
 # Normalize data range to 0-1
 target_nuc[0]= rescale_intensity(target_nuc[0], in_range='image', out_range=(0, 1) )
@@ -2230,11 +2232,11 @@ print(f"{'SSIM Membrane':<20} {ssim_mem_single:.3f}     {ssim_mem_tta:.3f}     {
 print(f"{'Pearson Nucleus':<20} {pearson_nuc_single:.3f}     {pearson_nuc_tta:.3f}     {pearson_nuc_tta-pearson_nuc_single:+.3f}")
 print(f"{'Pearson Membrane':<20} {pearson_mem_single:.3f}     {pearson_mem_tta:.3f}     {pearson_mem_tta-pearson_mem_single:+.3f}")
 
-# %% tags=["solution"]
+# %%
+# TODO: Modify as you see fit to compute the metrics on the full FOV.
 # Visualize the comparison
 # Modify as you see fit to visualize the results
 
-###### SOLUTION ######
 fig, axs = plt.subplots(3, 3, figsize=(15, 15))
 
 # First row: Input phase and targets
@@ -2268,6 +2270,73 @@ for ax in axs.flat:
 
 plt.tight_layout()
 plt.show()
+
+# %% tags=["solution"]
+# Import additional MONAI transforms for TTA
+from monai.transforms import (
+    Flip,
+    Rotate90,
+)
+
+# Get a test sample
+sample = next(iter(test_data.test_dataloader()))
+source_tensor = sample['source'].to(phase2fluor_model.device)
+target_tensor = sample['target']
+target_nuc = target_tensor[0,0].cpu().numpy()
+target_mem = target_tensor[0,1].cpu().numpy()
+
+predictions = []
+
+# Original prediction without augmentation
+with torch.inference_mode():
+    original_pred = phase2fluor_model(source_tensor)
+    predictions.append(original_pred.cpu().numpy())
+
+# Define the TTA transforms and the inverse transforms as a list of tuples (forward, inverse)
+transform_list = [
+    (Rotate90(k=1, spatial_axes=(-1, -2)), Rotate90(k=3, spatial_axes=(-1, -2))),
+    (Rotate90(k=2, spatial_axes=(-1, -2)), Rotate90(k=2, spatial_axes=(-1, -2))), 
+    (Rotate90(k=3, spatial_axes=(-1, -2)), Rotate90(k=1, spatial_axes=(-1, -2))),
+    (Flip(spatial_axis=-2), Flip(spatial_axis=-2)) ,
+    (Flip(spatial_axis=-1), Flip(spatial_axis=-1))
+]
+
+for forward_transform, inverse_transform in transform_list:
+    # Apply transform to each sample in batch
+    augmented_batch = []
+    for i in range(source_tensor.shape[0]):
+        img = source_tensor[i].cpu().numpy()
+        aug_img = forward_transform(img)
+        augmented_batch.append(aug_img)
+    augmented_source = torch.stack(augmented_batch).to(source_tensor.device)
+    
+    # Run inference on augmented input
+    with torch.inference_mode():
+        augmented_pred = phase2fluor_model(augmented_source)
+    
+    # De-apply transform to prediction
+    deaugmented_batch = []
+    for i in range(augmented_pred.shape[0]):
+        pred = augmented_pred[i].cpu().numpy()
+        deaug_pred = inverse_transform(pred)
+        deaugmented_batch.append(deaug_pred)
+    deaugmented_pred = torch.stack(deaugmented_batch)
+    
+    predictions.append(deaugmented_pred.cpu().numpy())
+
+# Average all predictions
+averaged_pred = np.stack(predictions).mean(axis=0)
+
+# Extract nucleus and membrane predictions
+tta_pred_nuc = averaged_pred[0, 0]
+tta_pred_mem = averaged_pred[0, 1]
+
+# Compare with single prediction (no TTA)
+with torch.inference_mode():
+    single_pred = phase2fluor_model(source_tensor)
+    single_pred_nuc = single_pred[0, 0].cpu().numpy()
+    single_pred_mem = single_pred[0, 1].cpu().numpy()
+
 
 # %% [markdown] tags=[]
 # <div class="alert alert-warning">
