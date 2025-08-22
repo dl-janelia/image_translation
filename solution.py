@@ -930,7 +930,8 @@ phase2fluor_model.to(device)
 # %% [markdown] tags=[]
 # <div class="alert alert-danger">
 #
-# If at any point during the exercise you need to reload your trained model, simply run the following code"
+# If at any point during the exercise you need to reload your trained model, simply run the following code:
+# </div>
 # ```python
 # # Load the latest checkpoint
 # phase2fluor_model_ckpt = natsorted(glob(
@@ -955,44 +956,6 @@ phase2fluor_model.to(device)
 #     accelerator='gpu'
 # )
 # ```
-
-# If you weren't able to train or training didn't complete please run the following lines to load the latest checkpoint <br>
-#
-# ```python
-# phase2fluor_model_ckpt = natsorted(glob(
-#    str(top_dir / "04_image_translation/logs/phase2fluor/version*/checkpoints/*.ckpt")
-# ))[-1]
-# ```
-# <br>
-# NOTE: if their model didn't go past epoch 5, lost their checkpoint, or didnt train anything.
-# Run the following:
-#
-# ```python
-# phase2fluor_model_ckpt = natsorted(glob(
-#  str("/mnt/efs/aimbl_2025/data/04_image_translation/pretrained_models/AIMBL_Demo/backup.ckpt")
-# ))[-1]
-# ```
-
-# ```python
-# phase2fluor_config = dict(
-#     in_channels=1,
-#     out_channels=2,
-#     encoder_blocks=[3, 3, 9, 3],
-#     dims=[96, 192, 384, 768],
-#     decoder_conv_blocks=2,
-#     stem_kernel_size=(1, 2, 2),
-#     in_stack_depth=1,
-#     pretraining=False,
-# )
-# Load the model checkpoint
-# phase2fluor_model = VSUNet.load_from_checkpoint(
-#     phase2fluor_model_ckpt,
-#     architecture="UNeXt2_2D",
-#     model_config = phase2fluor_config,
-#     accelerator='gpu'
-# )
-# ````
-# </div>
 # %%
 # Setup the test data module.
 test_data_path = top_dir / "04_image_translation/test/a549_hoechst_cellmask_test.zarr"
@@ -1224,7 +1187,7 @@ phase2fluor_model = VSUNet.load_from_checkpoint(
 phase2fluor_model.eval()
 # %% [markdown] tags=[]
 # <div class="alert alert-warning">
-# <h3> Question </h3>
+# <h3> Questions </h3>
 # 1. Can we evaluate a model's performance based on their segmentations?<br>
 # 2. Look up IoU or Jaccard index, dice coefficient, and AP metrics. LINK:https://metrics-reloaded.dkfz.de/metric-library <br>
 # We will evaluate the performance of your trained model with a pre-trained model using pixel based metrics as above and
@@ -1745,9 +1708,10 @@ plt.show()
 # </div>
 
 # %% [markdown]
-# <div class="alert alert-info">
-#
 # ### Plotting the predictions and segmentations
+# <div class="alert alert-info"> 
+#
+# <h3> Task 2.4: Visualize the predictions and segmentations </h3>
 # Here we will plot the predictions and segmentations side by side for the pretrained and trained models.<br>
 # <ul>
 # <li>How does your model, the pretrained model and the ground truth compare?</li>
