@@ -979,6 +979,11 @@ test_metrics = pd.DataFrame(
 
 # %%
 # Compute metrics directly and plot here.
+def normalize_fov(input: ArrayLike):
+    "Normalizing the fov with zero mean and unit variance"
+    mean = np.mean(input)
+    std = np.std(input)
+    return (input - mean) / std
 
 for i, sample in enumerate(
     tqdm(test_data.test_dataloader(), desc="Computing metrics per sample")
@@ -992,17 +997,26 @@ for i, sample in enumerate(
     )  # Squeezing batch dimension.
     predicted_image = predicted_image.cpu().numpy().squeeze(0)
     phase_image = phase_image.cpu().numpy().squeeze(0)
-    target_mem = rescale_intensity(target_image[1, 0, :, :], out_range=(0, 1))
-    target_nuc = rescale_intensity(target_image[0, 0, :, :], out_range=(0, 1))
-    # slicing channel dimension, squeezing z-dimension.
-    predicted_mem = rescale_intensity(predicted_image[1, :, :, :].squeeze(0), out_range=(0, 1))
-    predicted_nuc = rescale_intensity(predicted_image[0, :, :, :].squeeze(0), out_range=(0, 1))
+    
+    target_mem = normalize_fov(target_image[1, 0, :, :])
+    target_nuc = normalize_fov(target_image[0, 0, :, :])
+    predicted_nuc = normalize_fov(predicted_image[0, :, :, :].squeeze(0))
+    predicted_mem = normalize_fov(predicted_image[1, :, :, :].squeeze(0))
+    
+    # Compute pearson correlation.
+    pearson_nuc = np.corrcoef(target_nuc.flatten(), predicted_nuc.flatten())[0, 1]
+    pearson_mem = np.corrcoef(target_mem.flatten(), predicted_mem.flatten())[0, 1]
+
+    # Rescale the intensity to the 0-1 range.
+    predicted_mem = rescale_intensity(predicted_mem, out_range=(0, 1))
+    predicted_nuc = rescale_intensity(predicted_nuc, out_range=(0, 1))
+    target_mem = rescale_intensity(target_mem, out_range=(0, 1))
+    target_nuc = rescale_intensity(target_nuc, out_range=(0, 1))
 
     # Compute SSIM and pearson correlation.
     ssim_nuc = metrics.structural_similarity(target_nuc, predicted_nuc, data_range=1)
     ssim_mem = metrics.structural_similarity(target_mem, predicted_mem, data_range=1)
-    pearson_nuc = np.corrcoef(target_nuc.flatten(), predicted_nuc.flatten())[0, 1]
-    pearson_mem = np.corrcoef(target_mem.flatten(), predicted_mem.flatten())[0, 1]
+
 
     test_metrics.loc[i] = {
         "pearson_nuc": pearson_nuc,
@@ -1333,9 +1347,9 @@ sample_membrane_crop = rescale_intensity(
 )
 
 # Generate virtual stained data from phase (trained model)
-sample_phase_tensor = torch.tensor(sample_phase, dtype=torch.float32).to(device)
+sample_phase_tensor = torch.tensor(sample_phase, dtype=torch.float32)
 with torch.no_grad():
-    predicted_image = phase2fluor_model(sample_phase_tensor)
+    predicted_image = phase2fluor_model(sample_phase_tensor.to(phase2fluor_model.device))
 predicted_nuc_crop = rescale_intensity(
     predicted_image.cpu().numpy()[0, 0, 0, y_start:y_end, x_start:x_end], out_range=(0, 1)
 )
@@ -1345,7 +1359,7 @@ predicted_mem_crop = rescale_intensity(
 
 # Generate virtual stained data from pretrained model
 with torch.no_grad():
-    predicted_image_pretrained = pretrained_phase2fluor(sample_phase_tensor)
+    predicted_image_pretrained = pretrained_phase2fluor(sample_phase_tensor.to(pretrained_phase2fluor.device))
     predicted_nuc_pretrained_crop = rescale_intensity(
     predicted_image_pretrained.cpu().numpy()[0, 0, 0, y_start:y_end, x_start:x_end], out_range=(0, 1)
 )
@@ -1457,11 +1471,6 @@ print(f"  Virtual (pretrained): {len(np.unique(pretrained_mem_seg)) - 1} objects
 # Now let's compute metrics across all FOVs
 
 # %%
-def normalize_fov(input: ArrayLike):
-    "Normalizing the fov with zero mean and unit variance"
-    mean = np.mean(input)
-    std = np.std(input)
-    return (input - mean) / std
 
 # Iterating through the test dataset positions to:
 total_positions = len(positions)
@@ -1485,8 +1494,8 @@ with tqdm(total=total_positions, desc="Processing FOVs") as pbar:
         phase_image = torch.from_numpy(phase_image).type(torch.float32)
         phase_image = phase_image.to(phase2fluor_model.device)
         with torch.inference_mode():  # turn off gradient computation.
-            predicted_image_phase2fluor = phase2fluor_model(phase_image)
-            predicted_image_pretrained = pretrained_phase2fluor(phase_image)
+            predicted_image_phase2fluor = phase2fluor_model(phase_image.to(phase2fluor_model.device))
+            predicted_image_pretrained = pretrained_phase2fluor(phase_image.to(pretrained_phase2fluor.device))
 
         # Loading and Normalizing the target and predictions for both models
         predicted_image_phase2fluor = (
@@ -1841,7 +1850,6 @@ import torch
 print("Loading pretrained fluorescence-to-phase model...")
 
 # TODO: Replace this with actual model loading code
-fluor2phase_model_path = ...  # Path to the pretrained fluor2phase model checkpoint
 fluor2phase_config = dict(
     in_channels=...,  # Nuclei + Membrane channels
     out_channels=...,  # Phase channel 
@@ -1972,6 +1980,8 @@ print(f"Pearson Correlation: {pearson_phase:.3f}")
 
 # %% 
 # Visualize the fluorescence to phase transformation results
+# TODO: Visualize the fluorescence to phase transformation results. Modify is as you see fit
+
 fig, axs = plt.subplots(2, 3, figsize=(15, 10))
 
 axs[0, 0].imshow(fluor_input[0,0,0], cmap="gray")
@@ -2106,14 +2116,15 @@ averaged_pred = ...
 tta_pred_nuc = ...
 tta_pred_mem = ...
 
+#%% tags=["task"]
 # TODO: Compare TTA results with single prediction
 # Calculate metrics (SSIM, Pearson correlation) for both approaches. Do not forget to normalize the data range to 0-1.
 ###### YOUR CODE HERE ######
 
-
-# TODO: Visualize the comparisons of the predictions with and without TTA
+#%% tags=["task"]
+# Visualize the comparison
+# TODO: Visualize the comparisons of the predictions with and without TTA.
 ###### YOUR CODE HERE ######
-
 
 
 # %% tags=["solution"]
@@ -2182,8 +2193,11 @@ with torch.no_grad():
     single_pred_nuc = single_pred[0, 0].cpu().numpy()
     single_pred_mem = single_pred[0, 1].cpu().numpy()
 
-# %%
+# %% tags=["solution"]
 # Single prediction metrics
+# Calculate metrics (SSIM, Pearson correlation) for both approaches. Do not forget to normalize the data range to 0-1.
+
+###### SOLUTION ######
 
 # Normalize data range to 0-1
 target_nuc[0]= rescale_intensity(target_nuc[0], in_range='image', out_range=(0, 1) )
@@ -2216,8 +2230,11 @@ print(f"{'SSIM Membrane':<20} {ssim_mem_single:.3f}     {ssim_mem_tta:.3f}     {
 print(f"{'Pearson Nucleus':<20} {pearson_nuc_single:.3f}     {pearson_nuc_tta:.3f}     {pearson_nuc_tta-pearson_nuc_single:+.3f}")
 print(f"{'Pearson Membrane':<20} {pearson_mem_single:.3f}     {pearson_mem_tta:.3f}     {pearson_mem_tta-pearson_mem_single:+.3f}")
 
-# %%
+# %% tags=["solution"]
 # Visualize the comparison
+# Modify as you see fit to visualize the results
+
+###### SOLUTION ######
 fig, axs = plt.subplots(3, 3, figsize=(15, 15))
 
 # First row: Input phase and targets
