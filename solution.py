@@ -137,12 +137,12 @@ seed_everything(42, workers=True)
 
 # Paths to data and log directory
 top_dir = Path(
-    "/mnt/efs/aimbl_2025/data"
+    "/hpc/projects/virtual_staining/datasets/mehta-lab/VS_datasets/VSCyto2D/"
 ).expanduser()  # If this fails, make sure this to point to the download directory
 
 # Path to the training data
 data_path = (
-    top_dir / "04_image_translation/training/a549_hoechst_cellmask_train_val.zarr"
+    top_dir / "training/a549_hoechst_cellmask_train_val.zarr"
 )
 
 # Path where we will save our training logs
@@ -1210,7 +1210,7 @@ phase2fluor_model_ckpt = natsorted(
 # NOTE: if their model didn't go past epoch 5, lost their checkpoint, or didnt train anything.
 # Uncomment the next lines
 # phase2fluor_model_ckpt = natsorted(glob(
-#  str(top_dir/"04_image_translation/backup/phase2fluor/version_0/checkpoints/*.ckpt")
+#  str("/mnt/efs/aimbl_2025/data/04_image_translation/pretrained_models/AIMBL_Demo/backup.ckpt")
 # ))[-1]
 
 phase2fluor_config = dict(
@@ -1753,7 +1753,7 @@ plt.show()
 # ### Plotting the predictions and segmentations
 # Here we will plot the predictions and segmentations side by side for the pretrained and trained models.<br>
 # <ul>
-# <li>How do yout model, the pretrained model and the ground truth compare?</li>
+# <li>How does your model, the pretrained model and the ground truth compare?</li>
 # <li>How do the segmentations compare? </li>
 # </ul>
 # Feel free to modify the crop size and Y,X slicing to view different areas of the FOV
@@ -1830,21 +1830,11 @@ plt.show()
 # </div>
 
 # %% [markdown] tags=[]
-# # Part 2.5: Inverse Transformation - Fluorescence to Phase
-# 
-
-# - How much information is lost in the phase to fluorescence transformation
-# - Why perfect reconstruction might not be possible
-# - Multiple phase patterns can produce similar fluorescence signals
-# 
-# We'll use a pretrained model that was trained to predict phase from fluorescence channels.
-
-# %% [markdown] tags=[]
 # <div class="alert alert-info">
 # 
-# ### Task 2.5: Load and Evaluate the Inverse Model (Fluorescence → Phase)
-# In this section, we will explore the **inverse transformation**: using fluorescence images 
-# (nuclei + membrane) to predict the phase image. This will help us understand:
+# ### Task 2.5: Evaluate a fluorescence to phase model
+# In this section, we will explore the inverse transformation using fluorescence images 
+# (nuclei + membrane) to predict the phase image. 
 # 
 # <h3>Learning Goals:</h3>
 # <ul>
@@ -1853,15 +1843,17 @@ plt.show()
 # <li> Compare input fluorescence channels with predicted phase </li>
 # <li> Analyze why the phase prediction is not perfect </li>
 # </ul>
+# We'll use a pretrained model that was trained to predict phase from fluorescence channels.
 # </div>
+
 #%% [markdown] tags=[]
 # <div class="alert alert-warning">
 # 
 # <h3>Questions</h3>
 # <ul>
-# <li> Does the predicted phase look realistic? </li>   
-# <li> What structures are preserved vs. lost? </li>
-# <li> Why might this transformation be more challenging than phase → fluorescence? </li>
+# <li> How much information is lost in the phase to fluorescence transformation? </li>   
+# <li> Why perfect reconstruction might not be possible? </li>
+# <li> Can multiple phase patterns produce similar fluorescence signals? </li>
 # </ul>
 # </div>
 
@@ -2085,268 +2077,184 @@ plt.show()
 # 
 # Test Time Augmentation is a technique where you apply multiple augmentations to a single test image,
 # make predictions on each augmented version, and then combine the results (usually by averaging).
-# This can often improve model performance by reducing prediction variance.
 #
-# In this bonus section, we will:
-# <ul>
-# <li>  Implement test time augmentation using MONAI transforms </li>
-# <li> Apply rotations and flips at test time </li>
-# <li> Compare the performance with and without TTA using our metrics </li>
-# <li> Visualize the improvements in prediction quality </li>
-# </ul>
-# </div>
-
-# %% [markdown] tags=[]
-# <div class="alert alert-info">
-# 
-# ### Bonus Task: Implement Test Time Augmentation with MONAI transforms
-# 
-# Test Time Augmentation (TTA) can help improve model robustness and performance by:
-# 1. Applying multiple geometric transformations to test images using MONAI transforms
-# 2. Making predictions on each transformed version 
-# 3. Averaging the predictions after applying inverse transformations
-# Reference: N.Moshkov (2020) https://www.nature.com/articles/s41598-020-61808-3
-# 
 # **In this section we will:**
-# - Use `Rotate90d` and `Flipd` for deterministic transformations
-# - Apply transforms, make predictions, then apply inverse transforms
-# - Average all predictions to get the final TTA result
-# 
+# <ul>
+# <li> Use `Rotate90d` and `Flipd` for deterministic transformations </li>
+# <li> Apply transforms, make predictions, then apply inverse transforms </li>
+# <li> Average all predictions to get the final TTA result that is more robust to geometric variations. </li>
+# </ul>
+#
+# Reference: N.Moshkov (2020) https://www.nature.com/articles/s41598-020-61808-3
+#
 # </div>
 
 # %% tags=["task"]
 from monai.transforms import (
-    Compose,
-    Flipd,
-    Invertd,
-    Rotate90d,
+    Rotate90,
+    Flip,
 )
-
-
-def create_tta_transforms():
-    """Create a list of deterministic transforms for test time augmentation."""
-    tta_transforms = []
-    
-    # Original (no transform)
-    tta_transforms.append(Compose([]))
-    
-    # #######################
-    # ##### TODO ########
-    # #######################
-    # TODO: Add 90, 180, 270 degree rotations using Rotate90d
-    # HINT: Use Rotate90d with k parameter (k=1 for 90°, k=2 for 180°, k=3 for 270°)
-    # HINT: Apply to both source_channel and target_channel
-    # HINT: Use spatial_axes=(-2, -1) for last two dimensions
-    
-    
-    # #######################
-    # ##### TODO ########
-    # #######################
-    # TODO: Add horizontal flip using Flipd
-    # HINT: Use spatial_axis=-1 for horizontal flip
-    
-    
-    # #######################
-    # ##### TODO ########
-    # #######################
-    # TODO: Add vertical flip using Flipd  
-    # HINT: Use spatial_axis=-2 for vertical flip
-    
-    
-    return tta_transforms
-
-def apply_tta_prediction(model, sample, transforms):
-    """Apply TTA transforms and average predictions."""
-    predictions_nuc = []
-    predictions_mem = []
-    
-    for transform in transforms:
-        # Apply transform to the sample
-        transformed_sample = transform(sample.copy())
-        phase_input = transformed_sample[source_channel[0]]
-        
-        # Make prediction
-        with torch.no_grad():
-            pred = model(phase_input)
-            pred_nuc = pred[0, 0].cpu().numpy()
-            pred_mem = pred[0, 1].cpu().numpy()
-        
-        # Create prediction sample for inverse transform
-        pred_sample = {
-            target_channel[0]: torch.from_numpy(pred_nuc)[None],
-            target_channel[1]: torch.from_numpy(pred_mem)[None]
-        }
-        
-        # #######################
-        # ##### TODO ########
-        # #######################
-        # TODO: Apply inverse transform to predictions
-        # HINT: Check if transform has inverse method and apply it to pred_sample
-        # HINT: Use try/except to handle cases where inverse is not available
-        
-        
-        predictions_nuc.append(pred_sample[target_channel[0]].numpy().squeeze())
-        predictions_mem.append(pred_sample[target_channel[1]].numpy().squeeze())
-    
-    # #######################
-    # ##### TODO ########
-    # #######################
-    # TODO: Average all predictions
-    # HINT: Use np.mean() with axis=0
-    avg_pred_nuc = ...
-    avg_pred_mem = ...
-    
-    return avg_pred_nuc, avg_pred_mem
-
-# Apply TTA to a test sample
-print("Applying Test Time Augmentation with MONAI transforms...")
 
 # Get a test sample
 sample = next(iter(test_data.test_dataloader()))
-phase_image = sample['source'][0,0] 
-target_nuc = sample['target'][0,0].numpy().squeeze()
-target_mem = sample['target'][0,1].numpy().squeeze()
+source_tensor = sample['source'].to(phase2fluor_model.device)
+target_tensor = sample['target']
+target_nuc = target_tensor[0,0].cpu().numpy()
+target_mem = target_tensor[0,1].cpu().numpy()
 
-# Create TTA transforms
-tta_transforms = create_tta_transforms()
-
-# Apply TTA
-tta_pred_nuc, tta_pred_mem = apply_tta_prediction(phase2fluor_model, sample, tta_transforms)
-
-# Compare with single prediction (no TTA)
+# Saving the single prediction without TTA for later comparison
 with torch.no_grad():
-    single_pred = phase2fluor_model(phase_image)
+    single_pred = phase2fluor_model(source_tensor)
     single_pred_nuc = single_pred[0, 0].cpu().numpy()
     single_pred_mem = single_pred[0, 1].cpu().numpy()
+
+# TODO: Define TTA transforms using MONAI as a list of tuples (forward, inverse)
+###### YOUR CODE HERE ######
+transform_list = [("TODO", "TODO")]
+
+# TODO: Apply test-time augmentation
+# 1. Get original prediction (no augmentation)
+# 2. For each transform:
+#    - Apply transform to input
+#    - Run inference
+#    - De-apply transform to prediction
+# 3. Average all predictions
+
+predictions = []
+
+for forward_transform, inverse_transform in transform_list:
+    # Apply transform to each sample in batch
+    augmented_batch = []
+    for i in range(source_tensor.shape[0]):
+        #Apply the forward and store them
+        ###### YOUR CODE HERE ######
+        aug_img = ...
+        augmented_batch.append(aug_img)
+    augmented_source = torch.stack(augmented_batch).to(source_tensor.device)
+
+    #TODO: Run inference on augmented input
+    with torch.no_grad():
+        ###### YOUR CODE HERE ######
+        augmented_pred = ...
+
+    #TODO: De-apply transform to prediction
+    deaugmented_batch = []
+    for i in range(augmented_pred.shape[0]):
+        ###### YOUR CODE HERE ######
+        deaug_pred = ...
+    deaugmented_pred = torch.stack(deaugmented_batch)
+
+    predictions.append(deaugmented_pred.cpu().numpy())
+
+# TODO: Average all predictions or take the median
+###### YOUR CODE HERE ######
+averaged_pred = ...
+
+# TODO: Extract nucleus and membrane predictions
+###### YOUR CODE HERE ######
+tta_pred_nuc = ...
+tta_pred_mem = ...
+
+# TODO: Compare TTA results with single prediction
+# Calculate metrics (SSIM, Pearson correlation) for both approaches. Do not forget to normalize the data range to 0-1.
+###### YOUR CODE HERE ######
+
+
+# TODO: Visualize the comparisons of the predictions with and without TTA
+###### YOUR CODE HERE ######
+
+
 
 # %% tags=["solution"]
 # Import additional MONAI transforms for TTA
 from monai.transforms import (
-    Compose,
-    Flipd,
-    Invertd,
-    Rotate90d,
+    Flip,
+    Rotate90,
 )
-
-
-def create_tta_transforms():
-    """Create a list of deterministic transforms for test time augmentation."""
-    tta_transforms = []
-    
-    # Original (no transform)
-    tta_transforms.append(Compose([]))
-    
-    # 90, 180, 270 degree rotations
-    for k in [1, 2, 3]:
-        tta_transforms.append(
-            Compose([
-                Rotate90d(
-                    keys=source_channel + target_channel,
-                    k=k,
-                    spatial_axes=(-2, -1)
-                )
-            ])
-        )
-    
-    # Horizontal flip
-    tta_transforms.append(
-        Compose([
-            Flipd(
-                keys=source_channel + target_channel,
-                spatial_axis=-1
-            )
-        ])
-    )
-    
-    # Vertical flip
-    tta_transforms.append(
-        Compose([
-            Flipd(
-                keys=source_channel + target_channel,
-                spatial_axis=-2
-            )
-        ])
-    )
-    
-    return tta_transforms
-
-def apply_tta_prediction(model, sample, transforms):
-    """Apply TTA transforms and average predictions."""
-    predictions_nuc = []
-    predictions_mem = []
-    
-    for transform in transforms:
-        # Apply transform to the sample
-        transformed_sample = transform(sample).to(model.device)
-        
-        # Make prediction
-        with torch.no_grad():
-            pred = model(transformed_sample)
-            pred_nuc = pred[0, 0].cpu().numpy()
-            pred_mem = pred[0, 1].cpu().numpy()
-        
-        # Create prediction sample for inverse transform
-        pred_sample = {
-            target_channel[0]: torch.from_numpy(pred_nuc)[None],
-            target_channel[1]: torch.from_numpy(pred_mem)[None]
-        }
-        
-        # Apply inverse transform to predictions
-        try:
-            if hasattr(transform, 'inverse'):
-                pred_sample = transform.inverse(pred_sample)
-            elif len(transform.transforms) > 0:
-                # Apply inverse transform manually for composed transforms
-                for t in reversed(transform.transforms):
-                    if hasattr(t, 'inverse'):
-                        pred_sample = t.inverse(pred_sample)
-        except Exception as e:
-            # If inverse fails, predictions are already in transformed space
-            print(f"Warning: Could not apply inverse transform: {e}")
-            pass
-        
-        predictions_nuc.append(pred_sample[target_channel[0]].numpy().squeeze())
-        predictions_mem.append(pred_sample[target_channel[1]].numpy().squeeze())
-    
-    # Average all predictions
-    avg_pred_nuc = np.mean(predictions_nuc, axis=0)
-    avg_pred_mem = np.mean(predictions_mem, axis=0)
-    
-    return avg_pred_nuc, avg_pred_mem
-
-# Apply TTA to a test sample
-print("Applying Test Time Augmentation with MONAI transforms...")
 
 # Get a test sample
 sample = next(iter(test_data.test_dataloader()))
-phase_image = sample['source'][0,0]
-target_nuc = sample['target'][0,0].numpy().squeeze()
-target_mem = sample['target'][0,1].numpy().squeeze()
+source_tensor = sample['source'].to(phase2fluor_model.device)
+target_tensor = sample['target']
+target_nuc = target_tensor[0,0].cpu().numpy()
+target_mem = target_tensor[0,1].cpu().numpy()
 
-# Create TTA transforms
-tta_transforms = create_tta_transforms()
+predictions = []
 
-# Apply TTA
-tta_pred_nuc, tta_pred_mem = apply_tta_prediction(phase2fluor_model, sample['source'], tta_transforms)
+# Original prediction without augmentation
+with torch.no_grad():
+    original_pred = phase2fluor_model(source_tensor)
+    predictions.append(original_pred.cpu().numpy())
+
+# Define the TTA transforms and the inverse transforms as a list of tuples (forward, inverse)
+transform_list = [
+    (Rotate90(k=1, spatial_axes=(-1, -2)), Rotate90(k=3, spatial_axes=(-1, -2))),
+    (Rotate90(k=2, spatial_axes=(-1, -2)), Rotate90(k=2, spatial_axes=(-1, -2))), 
+    (Rotate90(k=3, spatial_axes=(-1, -2)), Rotate90(k=1, spatial_axes=(-1, -2))),
+    (Flip(spatial_axis=-2), Flip(spatial_axis=-2)) ,
+    (Flip(spatial_axis=-1), Flip(spatial_axis=-1))
+]
+
+for forward_transform, inverse_transform in transform_list:
+    # Apply transform to each sample in batch
+    augmented_batch = []
+    for i in range(source_tensor.shape[0]):
+        img = source_tensor[i].cpu().numpy()
+        aug_img = forward_transform(img)
+        augmented_batch.append(aug_img)
+    augmented_source = torch.stack(augmented_batch).to(source_tensor.device)
+    
+    # Run inference on augmented input
+    with torch.no_grad():
+        augmented_pred = phase2fluor_model(augmented_source)
+    
+    # De-apply transform to prediction
+    deaugmented_batch = []
+    for i in range(augmented_pred.shape[0]):
+        pred = augmented_pred[i].cpu().numpy()
+        deaug_pred = inverse_transform(pred)
+        deaugmented_batch.append(deaug_pred)
+    deaugmented_pred = torch.stack(deaugmented_batch)
+    
+    predictions.append(deaugmented_pred.cpu().numpy())
+
+# Average all predictions
+averaged_pred = np.stack(predictions).mean(axis=0)
+
+# Extract nucleus and membrane predictions
+tta_pred_nuc = averaged_pred[0, 0]
+tta_pred_mem = averaged_pred[0, 1]
 
 # Compare with single prediction (no TTA)
 with torch.no_grad():
-    single_pred = phase2fluor_model(phase_image)
+    single_pred = phase2fluor_model(source_tensor)
     single_pred_nuc = single_pred[0, 0].cpu().numpy()
     single_pred_mem = single_pred[0, 1].cpu().numpy()
 
 # %%
 # Single prediction metrics
-ssim_nuc_single = metrics.structural_similarity(target_nuc, single_pred_nuc, data_range=1)
-ssim_mem_single = metrics.structural_similarity(target_mem, single_pred_mem, data_range=1)
-pearson_nuc_single = np.corrcoef(target_nuc.flatten(), single_pred_nuc.flatten())[0, 1]
-pearson_mem_single = np.corrcoef(target_mem.flatten(), single_pred_mem.flatten())[0, 1]
+
+# Normalize data range to 0-1
+target_nuc[0]= rescale_intensity(target_nuc[0], in_range='image', out_range=(0, 1) )
+single_pred_nuc[0]= rescale_intensity(single_pred_nuc[0], in_range='image', out_range=(0, 1))
+target_mem[0]= rescale_intensity(target_mem[0], in_range='image', out_range=(0, 1))
+single_pred_mem[0]= rescale_intensity(single_pred_mem[0], in_range='image', out_range=(0, 1))
+target_nuc[0]= rescale_intensity(target_nuc[0], in_range='image', out_range=(0, 1))
+tta_pred_nuc[0]= rescale_intensity(tta_pred_nuc[0], in_range='image', out_range=(0, 1))
+tta_pred_mem[0]=rescale_intensity(tta_pred_mem[0], in_range='image', out_range=(0, 1))
+tta_pred_nuc[0]= rescale_intensity(tta_pred_nuc[0], in_range='image', out_range=(0, 1))
+
+# Calculate metrics
+ssim_nuc_single = metrics.structural_similarity(target_nuc[0], single_pred_nuc[0], data_range=1)
+ssim_mem_single = metrics.structural_similarity(target_mem[0], single_pred_mem[0], data_range=1)
+pearson_nuc_single = np.corrcoef(target_nuc[0].flatten(), single_pred_nuc[0].flatten())[0, 1]
+pearson_mem_single = np.corrcoef(target_mem[0].flatten(), single_pred_mem[0].flatten())[0, 1]
 
 # TTA prediction metrics
-ssim_nuc_tta = metrics.structural_similarity(target_nuc, tta_pred_nuc, data_range=1)
-ssim_mem_tta = metrics.structural_similarity(target_mem, tta_pred_mem, data_range=1)
-pearson_nuc_tta = np.corrcoef(target_nuc.flatten(), tta_pred_nuc.flatten())[0, 1]
-pearson_mem_tta = np.corrcoef(target_mem.flatten(), tta_pred_mem.flatten())[0, 1]
+ssim_nuc_tta = metrics.structural_similarity(target_nuc[0], tta_pred_nuc[0], data_range=1)
+ssim_mem_tta = metrics.structural_similarity(target_mem[0], tta_pred_mem[0], data_range=1)
+pearson_nuc_tta = np.corrcoef(target_nuc[0].flatten(), tta_pred_nuc[0].flatten())[0, 1]
+pearson_mem_tta = np.corrcoef(target_mem[0].flatten(), tta_pred_mem[0].flatten())[0, 1]
 
 # Print comparison
 print("\nMetrics Comparison:")
@@ -2362,27 +2270,27 @@ print(f"{'Pearson Membrane':<20} {pearson_mem_single:.3f}     {pearson_mem_tta:.
 fig, axs = plt.subplots(3, 3, figsize=(15, 15))
 
 # First row: Input phase and targets
-axs[0, 0].imshow(phase_image[0, 0].cpu().numpy(), cmap="gray")
+axs[0, 0].imshow(phase_image[0].cpu().numpy(), cmap="gray")
 axs[0, 0].set_title("Input Phase")
-axs[0, 1].imshow(target_nuc, cmap="gray")
+axs[0, 1].imshow(target_nuc[0], cmap="gray")
 axs[0, 1].set_title("Target Nucleus")
-axs[0, 2].imshow(target_mem, cmap="gray")
+axs[0, 2].imshow(target_mem[0], cmap="gray")
 axs[0, 2].set_title("Target Membrane")
 
 # Second row: Single predictions
-axs[1, 0].imshow(phase_image[0, 0].cpu().numpy(), cmap="gray")
+axs[1, 0].imshow(phase_image[0].cpu().numpy(), cmap="gray")
 axs[1, 0].set_title("Input Phase")
-axs[1, 1].imshow(single_pred_nuc, cmap="gray")
+axs[1, 1].imshow(single_pred_nuc[0], cmap="gray")
 axs[1, 1].set_title(f"Single Pred Nucleus\nSSIM: {ssim_nuc_single:.3f}")
-axs[1, 2].imshow(single_pred_mem, cmap="gray")
+axs[1, 2].imshow(single_pred_mem[0], cmap="gray")
 axs[1, 2].set_title(f"Single Pred Membrane\nSSIM: {ssim_mem_single:.3f}")
 
 # Third row: TTA predictions
-axs[2, 0].imshow(phase_image[0, 0].cpu().numpy(), cmap="gray")
+axs[2, 0].imshow(phase_image[0].cpu().numpy(), cmap="gray")
 axs[2, 0].set_title("Input Phase")
-axs[2, 1].imshow(tta_pred_nuc, cmap="gray")
+axs[2, 1].imshow(tta_pred_nuc[0], cmap="gray")
 axs[2, 1].set_title(f"TTA Pred Nucleus\nSSIM: {ssim_nuc_tta:.3f}")
-axs[2, 2].imshow(tta_pred_mem, cmap="gray")
+axs[2, 2].imshow(tta_pred_mem[0], cmap="gray")
 axs[2, 2].set_title(f"TTA Pred Membrane\nSSIM: {ssim_mem_tta:.3f}")
 
 # Remove ticks
@@ -2395,7 +2303,9 @@ plt.show()
 
 # %% [markdown] tags=[]
 # <div class="alert alert-warning">
+#
 # <h3>Discussion Questions for Test Time Augmentation</h3>
+#
 # <ul>
 # <li>Did TTA improve the metrics? By how much?</li>
 # <li>What are the trade-offs of using TTA? (hint: think about computation time vs. accuracy)</li>
@@ -2413,10 +2323,12 @@ plt.show()
 # You have successfully implemented Test Time Augmentation using MONAI transforms! 
 # 
 # Key takeaways:
-# - TTA is particularly useful when prediction quality is critical and computational budget allows
-# - Multiple geometric augmentations can reduce prediction variance and improve robustness
-# - TTA leverages deterministic transforms (`Rotate90d`, `Flipd`) instead of random ones
-# - The computational cost increases linearly with the number of TTA transforms
+# <ul>
+# <li> TTA is particularly useful when prediction quality is critical and computational budget allows </li>
+# <li> Multiple geometric augmentations can reduce prediction variance and improve robustness </li>
+# <li> TTA leverages deterministic transforms (`Rotate90d`, `Flipd`) instead of random ones </li>
+# <li> The computational cost increases linearly with the number of TTA transforms </li>
+# </ul>
 # </div>
 
 # %% [markdown] tags=[]
