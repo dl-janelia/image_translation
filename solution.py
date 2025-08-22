@@ -1813,7 +1813,7 @@ plt.show()
 # <h3>Questions</h3>
 # <ul>
 # <li> How much information is lost in the phase to fluorescence transformation? </li>   
-# <li> Why perfect reconstruction might not be possible? </li>
+# <li> Why might perfect reconstruction not be possible? </li>
 # <li> Can multiple phase patterns produce similar fluorescence signals? </li>
 # </ul>
 # </div>
