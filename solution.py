@@ -23,6 +23,22 @@
 # (Click on image to play video)
 #
 # %% [markdown] tags=[]
+# <div class="alert alert-success">
+# The exercise is organized in 3 parts:
+
+# <ul>
+# <li><b>Part 1</b> - Train a virtual staining model using iohub (I/O library), VisCy dataloaders, and tensorboard</li>
+# <li><b>Part 2</b> - Evaluate the model to translate phase into fluorescence.</li>
+# <li><b>Part 3</b> - Visualize the image transforms learned by the model and explore the model's regime of validity.</li>
+# </ul>
+
+# </div>
+# %% [markdown] tags=[]
+# <div class="alert alert-danger">
+# Set your python kernel to <span style="color:black;">04_image_translation</span>
+# </div>
+
+# %% [markdown] tags=[]
 # ### Goals
 
 # #### Part 1: Train a virtual staining model
@@ -53,25 +69,9 @@
 # [PyTorch Lightning](https://lightning.ai/) and [MONAI](https://monai.io/).
 
 # ### References
-# - [Liu, Z. and Hirata-Miyasaki, E. et al. (2024) Robust Virtual Staining of Cellular Landmarks](https://www.nature.com/articles/s42256-025-01046-2)
+# - [Liu, Z. and Hirata-Miyasaki, E. et al. (2025) Robust Virtual Staining of Cellular Landmarks](https://www.nature.com/articles/s42256-025-01046-2)
 # - [Guo et al. (2020) Revealing architectural order with quantitative label-free imaging and deep learning. eLife](https://elifesciences.org/articles/55502)
 
-# %% [markdown] tags=[]
-# <div class="alert alert-success">
-# The exercise is organized in 3 parts:
-
-# <ul>
-# <li><b>Part 1</b> - Train a virtual staining model using iohub (I/O library), VisCy dataloaders, and tensorboard</li>
-# <li><b>Part 2</b> - Evaluate the model to translate phase into fluorescence.</li>
-# <li><b>Part 3</b> - Visualize the image transforms learned by the model and explore the model's regime of validity.</li>
-# </ul>
-
-# </div>
-
-# %% [markdown] tags=[]
-# <div class="alert alert-danger">
-# Set your python kernel to <span style="color:black;">04_image_translation</span>
-# </div>
 # %% [markdown]
 # # Part 1: Log training data to tensorboard, start training a model.
 # ---------
@@ -242,7 +242,7 @@ dataset = open_ome_zarr(data_path)
 # ### Task 1.1
 # Look at a couple different fields of view (FOVs) by changing the `field` variable.
 # Check the cell density, the cell morphologies, and fluorescence signal.
-# HINT: look at the HCS Plate format to see what are your options.
+# HINT: look at the HCS Plate format to see what your options are.
 # </div>
 # %% tags=[]
 # Use the field and pyramid_level below to visualize data.
@@ -427,7 +427,7 @@ data_module = HCSDataModule(
 # Evaluate the data module
 print(
     f"Samples in training set: {len(data_module.train_dataset)}, "
-    f"samples in validation set:{len(data_module.val_dataset)}"
+    f"samples in validation set: {len(data_module.val_dataset)}"
 )
 train_dataloader = data_module.train_dataloader()
 # Instantiate the tensorboard SummaryWriter, logs the first batch and then iterates through all the batches and logs them to tensorboard.
@@ -468,7 +468,7 @@ data_module.setup("fit")
 # Evaluate the data module
 print(
     f"Samples in training set: {len(data_module.train_dataset)}, "
-    f"samples in validation set:{len(data_module.val_dataset)}"
+    f"samples in validation set: {len(data_module.val_dataset)}"
 )
 train_dataloader = data_module.train_dataloader()
 # Instantiate the tensorboard SummaryWriter, logs the first batch and then iterates through all the batches and logs them to tensorboard.
@@ -682,7 +682,7 @@ YX_PATCH_SIZE = (256, 256)
 # #######################
 # Dictionary that specifies key parameters of the model.
 phase2fluor_config = dict(
-    in_channels=...,  # TODO how many input channels are we feeding Hint: int?,
+    in_channels=...,  # TODO how many input channels are we feeding Hint: int,
     out_channels=...,  # TODO how many output channels are we solving for? Hint: int,
     encoder_blocks=[3, 3, 9, 3],
     dims=[96, 192, 384, 768],
@@ -2627,10 +2627,10 @@ plt.show()
 # ########## TODO ##############
 # Try out different multiples of 256 to visualize larger/smaller crops
 n = 3
-# ##############################
 # Center cropping the image
 y_slice = slice(Y // 2 - 256 * n // 2, Y // 2 + 256 * n // 2)
 x_slice = slice(X // 2 - 256 * n // 2, X // 2 + 256 * n // 2)
+# ##############################
 
 f, ax = plt.subplots(3, 2, figsize=(8, 12))
 
