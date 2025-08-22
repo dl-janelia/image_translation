@@ -492,7 +492,7 @@ log_batch_jupyter(batch)
 
 # %% [markdown] tags=[]
 # <div class="alert alert-warning">
-# <h3> Question for Task 1.3 </h3>
+# <h3> Question</h3>
 # 1. How do they make the model more robust to imaging parameters or conditions
 # without having to acquire data for every possible condition? <br>
 # </div>
@@ -638,7 +638,7 @@ writer.close()
 
 # %% [markdown] tags=[]
 # <div class="alert alert-warning">
-# <h3> Question for Task 1.3 </h3>
+# <h3> Questions </h3>
 # 1. Look at your tensorboard. Can you tell the agumentations were applied to the sample batch? Compare the batch with and without augmentations. <br>
 # 2. Are these augmentations good enough? What else would you add?
 # </div>
@@ -655,7 +655,7 @@ log_batch_jupyter(augmented_batch)
 # %% [markdown]
 # <div class="alert alert-info">
 #
-# ### Task 1.5
+# ### Task 1.4
 # - Run the next cell to instantiate the `UNeXt2_2D` model
 #   - Configure the network for the phase (source) to fluorescence cell nuclei and membrane (targets) regression task.
 #   - Call the VSUNet with the `"UNeXt2_2D"` architecture.
