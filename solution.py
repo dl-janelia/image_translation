@@ -1374,7 +1374,7 @@ sample_membrane = sample_pos.data[0, mem_cidx : mem_cidx + 1, Z_slice]
 
 # Crop 300x300 pixels from center
 center_y, center_x = sample_nucleus.shape[2] // 2, sample_nucleus.shape[3] // 2
-crop_size = 300
+crop_size = 300  #TODO: change this to see different sizes of crops
 y_start = max(0, center_y - crop_size // 2)
 y_end = min(sample_nucleus.shape[2], center_y + crop_size // 2)
 x_start = max(0, center_x - crop_size // 2)
@@ -1514,13 +1514,19 @@ print(f"  Virtual (pretrained): {len(np.unique(pretrained_mem_seg)) - 1} objects
 
 # Iterating through the test dataset positions to:
 total_positions = len(positions)
-
+CROP_SIZE = 768
 # Initializing the progress bar with the total number of positions
 with tqdm(total=total_positions, desc="Processing FOVs") as pbar:
     # Iterating through the test dataset positions
     for fov, pos in positions:
         T, C, Z, Y, X = pos.data.shape
         Z_slice = slice(Z // 2, Z // 2 + 1)
+        if CROP_SIZE is not None:
+            Y_slice, X_slice = slice(Y // 2-CROP_SIZE//2, Y // 2 + CROP_SIZE//2 ), slice(X // 2-CROP_SIZE//2, X // 2 + CROP_SIZE//2 )
+            Y = CROP_SIZE
+            X = CROP_SIZE
+        else:
+            Y_slice, X_slice = slice(None), slice(None)
         # Getting the arrays and the center slices
         phase_image = pos.data[:, phase_cidx : phase_cidx + 1, Z_slice]
         target_nucleus = pos.data[0, nuc_cidx : nuc_cidx + 1, Z_slice]
