@@ -1846,7 +1846,7 @@ plt.show()
 # We'll use a pretrained model that was trained to predict phase from fluorescence channels.
 # </div>
 
-#%% [markdown] tags=[]
+# %% [markdown] tags=[]
 # <div class="alert alert-warning">
 # 
 # <h3>Questions</h3>
@@ -1856,6 +1856,11 @@ plt.show()
 # <li> Can multiple phase patterns produce similar fluorescence signals? </li>
 # </ul>
 # </div>
+
+# %%
+# Path to the pretrained fluorescence to phase model checkpoint
+fluor2phase_model_path = Path('/mnt/efs/aimbl_2025/data/04_image_translation/pretrained_models/AIMBL_Demo/fluor2phase_step668.ckpt')
+
 
 # %% tags=["task"]
 # Load a pretrained model for fluorescence to phase translation
@@ -1913,16 +1918,16 @@ sample = next(iter(test_data_fluor2phase.test_dataloader()))
 # ##### TODO ########
 # #######################
 # TODO: Extract the input channels (fluorescence) and target (phase)
+# HINT: Print the keys of the `sample` dictionary
 # HINT: Input should be nuclei and membrane channels concatenated
 # HINT: Target should be the original phase image
-# HINT: Print the keys of the `sample` dictionary
 
-fluor_input = None  # TODO: Concatenate nuclei and membrane channels
-phase_target = None  # TODO: Extract phase channel
+fluor_input = ...  # TODO: Source
+target_phase = ...  # TODO: Target
 
 # TODO: Make prediction with the fluorescence to phase model
 with torch.no_grad():
-    predicted_phase = None  # TODO: fluor2phase_model(fluor_input)
+    predicted_phase = ... 
 
 # #######################
 # ##### TODO ########
@@ -1930,8 +1935,7 @@ with torch.no_grad():
 # TODO: Calculate metrics between predicted and target phase
 # HINT: Use SSIM and Pearson correlation as before
 
-# TODO: Visualize the comparison
-print("TODO: Implement fluorescence to phase prediction and visualization")
+# TODO: Visualize the comparison by plotting the images side by side
 
 # %% tags=["solution"]
 # Load a pretrained model for fluorescence to phase translation
@@ -2256,7 +2260,7 @@ print(f"{'Pearson Membrane':<20} {pearson_mem_single:.3f}     {pearson_mem_tta:.
 fig, axs = plt.subplots(3, 3, figsize=(15, 15))
 
 # First row: Input phase and targets
-axs[0, 0].imshow(source_tensor[0,0].cpu().numpy(), cmap="gray")
+axs[0, 0].imshow(source_tensor[0,0,0].cpu().numpy(), cmap="gray")
 axs[0, 0].set_title("Input Phase")
 axs[0, 1].imshow(target_nuc[0], cmap="gray")
 axs[0, 1].set_title("Target Nucleus")
@@ -2264,7 +2268,7 @@ axs[0, 2].imshow(target_mem[0], cmap="gray")
 axs[0, 2].set_title("Target Membrane")
 
 # Second row: Single predictions
-axs[1, 0].imshow(source_tensor[0,0].cpu().numpy(), cmap="gray")
+axs[1, 0].imshow(source_tensor[0,0,0].cpu().numpy(), cmap="gray")
 axs[1, 0].set_title("Input Phase")
 axs[1, 1].imshow(single_pred_nuc[0], cmap="gray")
 axs[1, 1].set_title(f"Single Pred Nucleus\nSSIM: {ssim_nuc_single:.3f}")
@@ -2272,7 +2276,7 @@ axs[1, 2].imshow(single_pred_mem[0], cmap="gray")
 axs[1, 2].set_title(f"Single Pred Membrane\nSSIM: {ssim_mem_single:.3f}")
 
 # Third row: TTA predictions
-axs[2, 0].imshow(source_tensor[0,0].cpu().numpy(), cmap="gray")
+axs[2, 0].imshow(source_tensor[0,0,0].cpu().numpy(), cmap="gray")
 axs[2, 0].set_title("Input Phase")
 axs[2, 1].imshow(tta_pred_nuc[0], cmap="gray")
 axs[2, 1].set_title(f"TTA Pred Nucleus\nSSIM: {ssim_nuc_tta:.3f}")
