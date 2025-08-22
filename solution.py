@@ -23,6 +23,22 @@
 # (Click on image to play video)
 #
 # %% [markdown] tags=[]
+# <div class="alert alert-success">
+# The exercise is organized in 3 parts:
+
+# <ul>
+# <li><b>Part 1</b> - Train a virtual staining model using iohub (I/O library), VisCy dataloaders, and tensorboard</li>
+# <li><b>Part 2</b> - Evaluate the model to translate phase into fluorescence.</li>
+# <li><b>Part 3</b> - Visualize the image transforms learned by the model and explore the model's regime of validity.</li>
+# </ul>
+
+# </div>
+# %% [markdown] tags=[]
+# <div class="alert alert-danger">
+# Set your python kernel to <span style="color:black;">04_image_translation</span>
+# </div>
+
+# %% [markdown] tags=[]
 # ### Goals
 
 # #### Part 1: Train a virtual staining model
@@ -53,25 +69,9 @@
 # [PyTorch Lightning](https://lightning.ai/) and [MONAI](https://monai.io/).
 
 # ### References
-# - [Liu, Z. and Hirata-Miyasaki, E. et al. (2024) Robust Virtual Staining of Cellular Landmarks](https://www.nature.com/articles/s42256-025-01046-2)
+# - [Liu, Z. and Hirata-Miyasaki, E. et al. (2025) Robust Virtual Staining of Cellular Landmarks](https://www.nature.com/articles/s42256-025-01046-2)
 # - [Guo et al. (2020) Revealing architectural order with quantitative label-free imaging and deep learning. eLife](https://elifesciences.org/articles/55502)
 
-# %% [markdown] tags=[]
-# <div class="alert alert-success">
-# The exercise is organized in 3 parts:
-
-# <ul>
-# <li><b>Part 1</b> - Train a virtual staining model using iohub (I/O library), VisCy dataloaders, and tensorboard</li>
-# <li><b>Part 2</b> - Evaluate the model to translate phase into fluorescence.</li>
-# <li><b>Part 3</b> - Visualize the image transforms learned by the model and explore the model's regime of validity.</li>
-# </ul>
-
-# </div>
-
-# %% [markdown] tags=[]
-# <div class="alert alert-danger">
-# Set your python kernel to <span style="color:black;">04_image_translation</span>
-# </div>
 # %% [markdown]
 # # Part 1: Log training data to tensorboard, start training a model.
 # ---------
@@ -242,7 +242,7 @@ dataset = open_ome_zarr(data_path)
 # ### Task 1.1
 # Look at a couple different fields of view (FOVs) by changing the `field` variable.
 # Check the cell density, the cell morphologies, and fluorescence signal.
-# HINT: look at the HCS Plate format to see what are your options.
+# HINT: look at the HCS Plate format to see what your options are.
 # </div>
 # %% tags=[]
 # Use the field and pyramid_level below to visualize data.
@@ -403,9 +403,6 @@ BATCH_SIZE = 4
 source_channel = ["TODO"]
 target_channel = ["TODO", "TODO"]
 
-# #######################
-# ##### TODO ########
-# #######################
 data_module = HCSDataModule(
     data_path,
     z_window_size=1,
@@ -427,7 +424,7 @@ data_module = HCSDataModule(
 # Evaluate the data module
 print(
     f"Samples in training set: {len(data_module.train_dataset)}, "
-    f"samples in validation set:{len(data_module.val_dataset)}"
+    f"samples in validation set: {len(data_module.val_dataset)}"
 )
 train_dataloader = data_module.train_dataloader()
 # Instantiate the tensorboard SummaryWriter, logs the first batch and then iterates through all the batches and logs them to tensorboard.
@@ -468,7 +465,7 @@ data_module.setup("fit")
 # Evaluate the data module
 print(
     f"Samples in training set: {len(data_module.train_dataset)}, "
-    f"samples in validation set:{len(data_module.val_dataset)}"
+    f"samples in validation set: {len(data_module.val_dataset)}"
 )
 train_dataloader = data_module.train_dataloader()
 # Instantiate the tensorboard SummaryWriter, logs the first batch and then iterates through all the batches and logs them to tensorboard.
@@ -495,7 +492,7 @@ log_batch_jupyter(batch)
 
 # %% [markdown] tags=[]
 # <div class="alert alert-warning">
-# <h3> Question for Task 1.3 </h3>
+# <h3> Question</h3>
 # 1. How do they make the model more robust to imaging parameters or conditions
 # without having to acquire data for every possible condition? <br>
 # </div>
@@ -641,7 +638,7 @@ writer.close()
 
 # %% [markdown] tags=[]
 # <div class="alert alert-warning">
-# <h3> Question for Task 1.3 </h3>
+# <h3> Questions </h3>
 # 1. Look at your tensorboard. Can you tell the agumentations were applied to the sample batch? Compare the batch with and without augmentations. <br>
 # 2. Are these augmentations good enough? What else would you add?
 # </div>
@@ -658,7 +655,7 @@ log_batch_jupyter(augmented_batch)
 # %% [markdown]
 # <div class="alert alert-info">
 #
-# ### Task 1.5
+# ### Task 1.4
 # - Run the next cell to instantiate the `UNeXt2_2D` model
 #   - Configure the network for the phase (source) to fluorescence cell nuclei and membrane (targets) regression task.
 #   - Call the VSUNet with the `"UNeXt2_2D"` architecture.
@@ -682,7 +679,7 @@ YX_PATCH_SIZE = (256, 256)
 # #######################
 # Dictionary that specifies key parameters of the model.
 phase2fluor_config = dict(
-    in_channels=...,  # TODO how many input channels are we feeding Hint: int?,
+    in_channels=...,  # TODO how many input channels are we feeding Hint: int,
     out_channels=...,  # TODO how many output channels are we solving for? Hint: int,
     encoder_blocks=[3, 3, 9, 3],
     dims=[96, 192, 384, 768],
@@ -933,7 +930,8 @@ phase2fluor_model.to(device)
 # %% [markdown] tags=[]
 # <div class="alert alert-danger">
 #
-# If at any point during the exercise you need to reload your trained model, simply run the following code"
+# If at any point during the exercise you need to reload your trained model, simply run the following code:
+# </div>
 # ```python
 # # Load the latest checkpoint
 # phase2fluor_model_ckpt = natsorted(glob(
@@ -1238,7 +1236,7 @@ phase2fluor_model = VSUNet.load_from_checkpoint(
 phase2fluor_model.eval()
 # %% [markdown] tags=[]
 # <div class="alert alert-warning">
-# <h3> Question </h3>
+# <h3> Questions </h3>
 # 1. Can we evaluate a model's performance based on their segmentations?<br>
 # 2. Look up IoU or Jaccard index, dice coefficient, and AP metrics. LINK:https://metrics-reloaded.dkfz.de/metric-library <br>
 # We will evaluate the performance of your trained model with a pre-trained model using pixel based metrics as above and
@@ -1760,9 +1758,10 @@ plt.show()
 # </div>
 
 # %% [markdown]
-# <div class="alert alert-info">
-#
 # ### Plotting the predictions and segmentations
+# <div class="alert alert-info"> 
+#
+# <h3> Task 2.4: Visualize the predictions and segmentations </h3>
 # Here we will plot the predictions and segmentations side by side for the pretrained and trained models.<br>
 # <ul>
 # <li>How does your model, the pretrained model and the ground truth compare?</li>
@@ -1864,7 +1863,7 @@ plt.show()
 # <h3>Questions</h3>
 # <ul>
 # <li> How much information is lost in the phase to fluorescence transformation? </li>   
-# <li> Why perfect reconstruction might not be possible? </li>
+# <li> Why might perfect reconstruction not be possible? </li>
 # <li> Can multiple phase patterns produce similar fluorescence signals? </li>
 # </ul>
 # </div>
@@ -2178,8 +2177,8 @@ averaged_pred = ...
 tta_pred_nuc = ...
 tta_pred_mem = ...
 
-# %% tags=["task"]
-# Single prediction metrics
+#%% tags=["task"]
+# TODO: Compare TTA results with single prediction
 # Calculate metrics (SSIM, Pearson correlation) for both approaches. Do not forget to normalize the data range to 0-1.
 
 # TODO Normalize data range to 0-1  
@@ -2675,10 +2674,10 @@ plt.show()
 # ########## TODO ##############
 # Try out different multiples of 256 to visualize larger/smaller crops
 n = 3
-# ##############################
 # Center cropping the image
 y_slice = slice(Y // 2 - 256 * n // 2, Y // 2 + 256 * n // 2)
 x_slice = slice(X // 2 - 256 * n // 2, X // 2 + 256 * n // 2)
+# ##############################
 
 f, ax = plt.subplots(3, 2, figsize=(8, 12))
 
