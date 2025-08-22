@@ -1944,11 +1944,19 @@ with torch.inference_mode():
 # #######################
 # ##### TODO ########
 # #######################
-# TODO: Calculate metrics between predicted and target phase
+# Calculate metrics between predicted and target phase
 # HINT: Use SSIM and Pearson correlation as before
 
-# %%
+# TODO: Normalize data range to 0-1
+###### YOUR CODE HERE ######  
 
+# TODO: Calculate SSIM and Pearson correlation
+###### YOUR CODE HERE ######  
+
+# TODO: Print metrics
+print(f"Phase Reconstruction Metrics:")
+print(f"SSIM: {ssim_phase:.3f}")
+print(f"Pearson Correlation: {pearson_phase:.3f}")
 
 
 
