@@ -971,9 +971,7 @@ phase2fluor_model.to(device)
 # Run the following:
 #
 # ```python
-# phase2fluor_model_ckpt = natsorted(glob(
-#  str("/mnt/efs/aimbl_2025/data/04_image_translation/pretrained_models/AIMBL_Demo/backup.ckpt")
-# ))[-1]
+# phase2fluor_model_ckpt = "/mnt/efs/aimbl_2025/data/04_image_translation/pretrained_models/AIMBL_Demo/backup.ckpt"
 # ```
 
 # ```python
@@ -1218,9 +1216,7 @@ phase2fluor_model_ckpt = natsorted(
 
 # NOTE: if their model didn't go past epoch 5, lost their checkpoint, or didnt train anything.
 # Uncomment the next lines
-# phase2fluor_model_ckpt = natsorted(glob(
-#  str("/mnt/efs/aimbl_2025/data/04_image_translation/pretrained_models/AIMBL_Demo/backup.ckpt")
-# ))[-1]
+# phase2fluor_model_ckpt = "/mnt/efs/aimbl_2025/data/04_image_translation/pretrained_models/AIMBL_Demo/backup.ckpt"
 
 phase2fluor_config = dict(
     in_channels=1,
@@ -1389,7 +1385,7 @@ sample_membrane_crop = rescale_intensity(
 
 # Generate virtual stained data from phase (trained model)
 sample_phase_tensor = torch.tensor(sample_phase, dtype=torch.float32)
-with torch.no_grad():
+with torch.inference_mode():
     predicted_image = phase2fluor_model(sample_phase_tensor.to(phase2fluor_model.device))
 predicted_nuc_crop = rescale_intensity(
     predicted_image.cpu().numpy()[0, 0, 0, y_start:y_end, x_start:x_end], out_range=(0, 1)
@@ -1399,7 +1395,7 @@ predicted_mem_crop = rescale_intensity(
 )
 
 # Generate virtual stained data from pretrained model
-with torch.no_grad():
+with torch.inference_mode():
     predicted_image_pretrained = pretrained_phase2fluor(sample_phase_tensor.to(pretrained_phase2fluor.device))
     predicted_nuc_pretrained_crop = rescale_intensity(
     predicted_image_pretrained.cpu().numpy()[0, 0, 0, y_start:y_end, x_start:x_end], out_range=(0, 1)
@@ -1942,7 +1938,7 @@ target_phase = ...  # TODO: Target
 
 # TODO: Make prediction with the fluorescence to phase model
 # NOTE: The `fluor2phase_model`, returns a tuple. Select the first item with `[0]`  
-with torch.no_grad():
+with torch.inference_mode():
     predicted_phase = ... 
 
 # #######################
@@ -2014,7 +2010,7 @@ fluor_input = sample['source'].to(fluor2phase_model.device)
 target_image = sample['target'].cpu().numpy().squeeze(0)
 
 # Run inference
-with torch.no_grad():
+with torch.inference_mode():
     predicted_phase = fluor2phase_model(fluor_input)[0]
 
 fluor_input = fluor_input.cpu().numpy()
@@ -2074,12 +2070,16 @@ plt.show()
 # <h3>Key Insights from Fluorescence to Phase Model</h3>
 # 
 # This exploration reveals fundamental limitations in image-to-image translation:
-# - Phase images contain rich structural information about unlabeled cellular components
-# - Fluorescence only captures specific labeled structures (nuclei, membranes,etc.)
-# - The fluorescence to phase model is an ill-posed problem - multiple phase images could produce similar fluorescence patterns
-# - Models can only predict based on correlations learned during training
-# - Structural details not correlated with fluorescence signals cannot be recovered
-
+# <ul>
+# <li> Phase images contain rich structural information about unlabeled cellular components </li>
+# <li> Fluorescence only captures specific labeled structures (nuclei, membranes,etc.) </li>
+# <li> The fluorescence to phase model is an ill-posed problem - multiple phase images could produce similar fluorescence patterns </li>
+# <li> Models can only predict based on correlations learned during training </li>
+# <li> Structural details not correlated with fluorescence signals cannot be recovered </li>
+# </ul>
+#
+# #### Now, let's return to the `phase2fluor` model!
+# 
 # </div>
 
 # %% [markdown] tags=[]
@@ -2098,6 +2098,10 @@ plt.show()
 #
 # Reference: N.Moshkov (2020) https://www.nature.com/articles/s41598-020-61808-3
 #
+# Hint: You can use the `Rotate90` and `Flip` transforms from MONAI.
+# Example forward transform: `Rotate90(k=1, spatial_axes=(-1, -2))`
+# Example inverse transform: `Rotate90(k=3, spatial_axes=(-1, -2))`
+#
 # </div>
 
 # %% tags=["task"]
@@ -2114,7 +2118,7 @@ target_nuc = target_tensor[0,0].cpu().numpy()
 target_mem = target_tensor[0,1].cpu().numpy()
 
 # Saving the single prediction without TTA for later comparison
-with torch.no_grad():
+with torch.inference_mode():
     single_pred = phase2fluor_model(source_tensor)
     single_pred_nuc = single_pred[0, 0].cpu().numpy()
     single_pred_mem = single_pred[0, 1].cpu().numpy()
@@ -2144,7 +2148,7 @@ for forward_transform, inverse_transform in transform_list:
     augmented_source = torch.stack(augmented_batch).to(source_tensor.device)
 
     #TODO: Run inference on augmented input
-    with torch.no_grad():
+    with torch.inference_mode():
         ###### YOUR CODE HERE ######
         augmented_pred = ...
 
@@ -2166,10 +2170,29 @@ averaged_pred = ...
 tta_pred_nuc = ...
 tta_pred_mem = ...
 
-# %% 
+# %% tags=["task"]
 # Single prediction metrics
 # Calculate metrics (SSIM, Pearson correlation) for both approaches. Do not forget to normalize the data range to 0-1.
-# TODO: Modify as you see fit to compute the metrics on the full FOV.
+
+# TODO Normalize data range to 0-1  
+###### YOUR CODE HERE ######  
+
+# TODO Calculate metrics  
+###### YOUR CODE HERE ######  
+
+# TODO # TTA prediction metrics  
+###### YOUR CODE HERE ######  
+
+# Print comparison  
+print("\nMetrics Comparison:")  
+print(f"{'Metric':<20} {'Single':<10} {'TTA':<10} {'Improvement':<12}")  
+print("-" * 55)  
+print(f"{'SSIM Nucleus':<20} {ssim_nuc_single:.3f}     {ssim_nuc_tta:.3f}     {ssim_nuc_tta-ssim_nuc_single:+.3f}")  
+print(f"{'SSIM Membrane':<20} {ssim_mem_single:.3f}     {ssim_mem_tta:.3f}     {ssim_mem_tta-ssim_mem_single:+.3f}")  
+print(f"{'Pearson Nucleus':<20} {pearson_nuc_single:.3f}     {pearson_nuc_tta:.3f}     {pearson_nuc_tta-pearson_nuc_single:+.3f}")  
+print(f"{'Pearson Membrane':<20} {pearson_mem_single:.3f}     {pearson_mem_tta:.3f}     {pearson_mem_tta-pearson_mem_single:+.3f}")  
+
+# %% tags=["solution"]
 
 # Normalize data range to 0-1
 target_nuc[0]= rescale_intensity(target_nuc[0], in_range='image', out_range=(0, 1) )
@@ -2258,7 +2281,7 @@ target_mem = target_tensor[0,1].cpu().numpy()
 predictions = []
 
 # Original prediction without augmentation
-with torch.no_grad():
+with torch.inference_mode():
     original_pred = phase2fluor_model(source_tensor)
     predictions.append(original_pred.cpu().numpy())
 
@@ -2281,7 +2304,7 @@ for forward_transform, inverse_transform in transform_list:
     augmented_source = torch.stack(augmented_batch).to(source_tensor.device)
     
     # Run inference on augmented input
-    with torch.no_grad():
+    with torch.inference_mode():
         augmented_pred = phase2fluor_model(augmented_source)
     
     # De-apply transform to prediction
@@ -2302,7 +2325,7 @@ tta_pred_nuc = averaged_pred[0, 0]
 tta_pred_mem = averaged_pred[0, 1]
 
 # Compare with single prediction (no TTA)
-with torch.no_grad():
+with torch.inference_mode():
     single_pred = phase2fluor_model(source_tensor)
     single_pred_nuc = single_pred[0, 0].cpu().numpy()
     single_pred_mem = single_pred[0, 1].cpu().numpy()
