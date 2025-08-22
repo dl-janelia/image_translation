@@ -137,12 +137,12 @@ seed_everything(42, workers=True)
 
 # Paths to data and log directory
 top_dir = Path(
-    "/hpc/projects/virtual_staining/datasets/mehta-lab/VS_datasets/VSCyto2D/"
+    "/mnt/efs/aimbl_2025/data"
 ).expanduser()  # If this fails, make sure this to point to the download directory
 
 # Path to the training data
 data_path = (
-    top_dir / "training/a549_hoechst_cellmask_train_val.zarr"
+    top_dir / "04_image_translation/training/a549_hoechst_cellmask_train_val.zarr"
 )
 
 # Path where we will save our training logs
