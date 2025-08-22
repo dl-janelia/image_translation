@@ -1031,17 +1031,18 @@ for i, sample in enumerate(
     phase_image = sample["source"].to(phase2fluor_model.device)
     with torch.inference_mode():  
         predicted_image = phase2fluor_model(phase_image)
-
+    
+    # Squeezing batch dimension.
     target_image = (
         sample["target"].cpu().numpy().squeeze(0)
-    )  # Squeezing batch dimension.
+    )  
     predicted_image = predicted_image.cpu().numpy().squeeze(0)
     phase_image = phase_image.cpu().numpy().squeeze(0)
     
     target_mem = normalize_fov(target_image[1, 0, :, :])
     target_nuc = normalize_fov(target_image[0, 0, :, :])
-    predicted_nuc = normalize_fov(predicted_image[0, :, :, :].squeeze(0))
-    predicted_mem = normalize_fov(predicted_image[1, :, :, :].squeeze(0))
+    predicted_nuc = normalize_fov(predicted_image[0,0, :, :])
+    predicted_mem = normalize_fov(predicted_image[1,0, :, :])
     
     # Compute pearson correlation.
     pearson_nuc = np.corrcoef(target_nuc.flatten(), predicted_nuc.flatten())[0, 1]
@@ -1940,6 +1941,7 @@ fluor_input = ...  # TODO: Source
 target_phase = ...  # TODO: Target
 
 # TODO: Make prediction with the fluorescence to phase model
+# NOTE: The `fluor2phase_model`, returns a tuple. Select the first item with `[0]`  
 with torch.no_grad():
     predicted_phase = ... 
 
@@ -1949,7 +1951,10 @@ with torch.no_grad():
 # TODO: Calculate metrics between predicted and target phase
 # HINT: Use SSIM and Pearson correlation as before
 
-# TODO: Visualize the comparison by plotting the images side by side
+# %%
+
+
+
 
 # %% tags=["solution"]
 # Load a pretrained model for fluorescence to phase translation
@@ -2025,7 +2030,7 @@ print(f"Pearson Correlation: {pearson_phase:.3f}")
 
 # %% 
 # Visualize the fluorescence to phase transformation results
-# TODO: Visualize the fluorescence to phase transformation results. Modify is as you see fit
+# TODO: Visualize the fluorescence to phase transformation results. Modify is as you see fit.
 
 fig, axs = plt.subplots(2, 3, figsize=(15, 10))
 
@@ -2161,16 +2166,80 @@ averaged_pred = ...
 tta_pred_nuc = ...
 tta_pred_mem = ...
 
-#%% tags=["task"]
-# TODO: Compare TTA results with single prediction
+# %% 
+# Single prediction metrics
 # Calculate metrics (SSIM, Pearson correlation) for both approaches. Do not forget to normalize the data range to 0-1.
-###### YOUR CODE HERE ######
+# TODO: Modify as you see fit to compute the metrics on the full FOV.
 
-#%% tags=["task"]
+# Normalize data range to 0-1
+target_nuc[0]= rescale_intensity(target_nuc[0], in_range='image', out_range=(0, 1) )
+single_pred_nuc[0]= rescale_intensity(single_pred_nuc[0], in_range='image', out_range=(0, 1))
+target_mem[0]= rescale_intensity(target_mem[0], in_range='image', out_range=(0, 1))
+single_pred_mem[0]= rescale_intensity(single_pred_mem[0], in_range='image', out_range=(0, 1))
+target_nuc[0]= rescale_intensity(target_nuc[0], in_range='image', out_range=(0, 1))
+tta_pred_nuc[0]= rescale_intensity(tta_pred_nuc[0], in_range='image', out_range=(0, 1))
+tta_pred_mem[0]=rescale_intensity(tta_pred_mem[0], in_range='image', out_range=(0, 1))
+tta_pred_nuc[0]= rescale_intensity(tta_pred_nuc[0], in_range='image', out_range=(0, 1))
+
+# Calculate metrics
+ssim_nuc_single = metrics.structural_similarity(target_nuc[0], single_pred_nuc[0], data_range=1)
+ssim_mem_single = metrics.structural_similarity(target_mem[0], single_pred_mem[0], data_range=1)
+pearson_nuc_single = np.corrcoef(target_nuc[0].flatten(), single_pred_nuc[0].flatten())[0, 1]
+pearson_mem_single = np.corrcoef(target_mem[0].flatten(), single_pred_mem[0].flatten())[0, 1]
+
+# TTA prediction metrics
+ssim_nuc_tta = metrics.structural_similarity(target_nuc[0], tta_pred_nuc[0], data_range=1)
+ssim_mem_tta = metrics.structural_similarity(target_mem[0], tta_pred_mem[0], data_range=1)
+pearson_nuc_tta = np.corrcoef(target_nuc[0].flatten(), tta_pred_nuc[0].flatten())[0, 1]
+pearson_mem_tta = np.corrcoef(target_mem[0].flatten(), tta_pred_mem[0].flatten())[0, 1]
+
+# Print comparison
+print("\nMetrics Comparison:")
+print(f"{'Metric':<20} {'Single':<10} {'TTA':<10} {'Improvement':<12}")
+print("-" * 55)
+print(f"{'SSIM Nucleus':<20} {ssim_nuc_single:.3f}     {ssim_nuc_tta:.3f}     {ssim_nuc_tta-ssim_nuc_single:+.3f}")
+print(f"{'SSIM Membrane':<20} {ssim_mem_single:.3f}     {ssim_mem_tta:.3f}     {ssim_mem_tta-ssim_mem_single:+.3f}")
+print(f"{'Pearson Nucleus':<20} {pearson_nuc_single:.3f}     {pearson_nuc_tta:.3f}     {pearson_nuc_tta-pearson_nuc_single:+.3f}")
+print(f"{'Pearson Membrane':<20} {pearson_mem_single:.3f}     {pearson_mem_tta:.3f}     {pearson_mem_tta-pearson_mem_single:+.3f}")
+
+# %%
+# TODO: Modify as you see fit to compute the metrics on the full FOV.
 # Visualize the comparison
-# TODO: Visualize the comparisons of the predictions with and without TTA.
-###### YOUR CODE HERE ######
+# Modify as you see fit to visualize the results
 
+fig, axs = plt.subplots(3, 3, figsize=(15, 15))
+
+# First row: Input phase and targets
+axs[0, 0].imshow(source_tensor[0,0,0].cpu().numpy(), cmap="gray")
+axs[0, 0].set_title("Input Phase")
+axs[0, 1].imshow(target_nuc[0], cmap="gray")
+axs[0, 1].set_title("Target Nucleus")
+axs[0, 2].imshow(target_mem[0], cmap="gray")
+axs[0, 2].set_title("Target Membrane")
+
+# Second row: Single predictions
+axs[1, 0].imshow(source_tensor[0,0,0].cpu().numpy(), cmap="gray")
+axs[1, 0].set_title("Input Phase")
+axs[1, 1].imshow(single_pred_nuc[0], cmap="gray")
+axs[1, 1].set_title(f"Single Pred Nucleus\nSSIM: {ssim_nuc_single:.3f}")
+axs[1, 2].imshow(single_pred_mem[0], cmap="gray")
+axs[1, 2].set_title(f"Single Pred Membrane\nSSIM: {ssim_mem_single:.3f}")
+
+# Third row: TTA predictions
+axs[2, 0].imshow(source_tensor[0,0,0].cpu().numpy(), cmap="gray")
+axs[2, 0].set_title("Input Phase")
+axs[2, 1].imshow(tta_pred_nuc[0], cmap="gray")
+axs[2, 1].set_title(f"TTA Pred Nucleus\nSSIM: {ssim_nuc_tta:.3f}")
+axs[2, 2].imshow(tta_pred_mem[0], cmap="gray")
+axs[2, 2].set_title(f"TTA Pred Membrane\nSSIM: {ssim_mem_tta:.3f}")
+
+# Remove ticks
+for ax in axs.flat:
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+plt.tight_layout()
+plt.show()
 
 # %% tags=["solution"]
 # Import additional MONAI transforms for TTA
@@ -2238,81 +2307,6 @@ with torch.no_grad():
     single_pred_nuc = single_pred[0, 0].cpu().numpy()
     single_pred_mem = single_pred[0, 1].cpu().numpy()
 
-# %% tags=["solution"]
-# Single prediction metrics
-# Calculate metrics (SSIM, Pearson correlation) for both approaches. Do not forget to normalize the data range to 0-1.
-
-###### SOLUTION ######
-
-# Normalize data range to 0-1
-target_nuc[0]= rescale_intensity(target_nuc[0], in_range='image', out_range=(0, 1) )
-single_pred_nuc[0]= rescale_intensity(single_pred_nuc[0], in_range='image', out_range=(0, 1))
-target_mem[0]= rescale_intensity(target_mem[0], in_range='image', out_range=(0, 1))
-single_pred_mem[0]= rescale_intensity(single_pred_mem[0], in_range='image', out_range=(0, 1))
-target_nuc[0]= rescale_intensity(target_nuc[0], in_range='image', out_range=(0, 1))
-tta_pred_nuc[0]= rescale_intensity(tta_pred_nuc[0], in_range='image', out_range=(0, 1))
-tta_pred_mem[0]=rescale_intensity(tta_pred_mem[0], in_range='image', out_range=(0, 1))
-tta_pred_nuc[0]= rescale_intensity(tta_pred_nuc[0], in_range='image', out_range=(0, 1))
-
-# Calculate metrics
-ssim_nuc_single = metrics.structural_similarity(target_nuc[0], single_pred_nuc[0], data_range=1)
-ssim_mem_single = metrics.structural_similarity(target_mem[0], single_pred_mem[0], data_range=1)
-pearson_nuc_single = np.corrcoef(target_nuc[0].flatten(), single_pred_nuc[0].flatten())[0, 1]
-pearson_mem_single = np.corrcoef(target_mem[0].flatten(), single_pred_mem[0].flatten())[0, 1]
-
-# TTA prediction metrics
-ssim_nuc_tta = metrics.structural_similarity(target_nuc[0], tta_pred_nuc[0], data_range=1)
-ssim_mem_tta = metrics.structural_similarity(target_mem[0], tta_pred_mem[0], data_range=1)
-pearson_nuc_tta = np.corrcoef(target_nuc[0].flatten(), tta_pred_nuc[0].flatten())[0, 1]
-pearson_mem_tta = np.corrcoef(target_mem[0].flatten(), tta_pred_mem[0].flatten())[0, 1]
-
-# Print comparison
-print("\nMetrics Comparison:")
-print(f"{'Metric':<20} {'Single':<10} {'TTA':<10} {'Improvement':<12}")
-print("-" * 55)
-print(f"{'SSIM Nucleus':<20} {ssim_nuc_single:.3f}     {ssim_nuc_tta:.3f}     {ssim_nuc_tta-ssim_nuc_single:+.3f}")
-print(f"{'SSIM Membrane':<20} {ssim_mem_single:.3f}     {ssim_mem_tta:.3f}     {ssim_mem_tta-ssim_mem_single:+.3f}")
-print(f"{'Pearson Nucleus':<20} {pearson_nuc_single:.3f}     {pearson_nuc_tta:.3f}     {pearson_nuc_tta-pearson_nuc_single:+.3f}")
-print(f"{'Pearson Membrane':<20} {pearson_mem_single:.3f}     {pearson_mem_tta:.3f}     {pearson_mem_tta-pearson_mem_single:+.3f}")
-
-# %% tags=["solution"]
-# Visualize the comparison
-# Modify as you see fit to visualize the results
-
-###### SOLUTION ######
-fig, axs = plt.subplots(3, 3, figsize=(15, 15))
-
-# First row: Input phase and targets
-axs[0, 0].imshow(source_tensor[0,0,0].cpu().numpy(), cmap="gray")
-axs[0, 0].set_title("Input Phase")
-axs[0, 1].imshow(target_nuc[0], cmap="gray")
-axs[0, 1].set_title("Target Nucleus")
-axs[0, 2].imshow(target_mem[0], cmap="gray")
-axs[0, 2].set_title("Target Membrane")
-
-# Second row: Single predictions
-axs[1, 0].imshow(source_tensor[0,0,0].cpu().numpy(), cmap="gray")
-axs[1, 0].set_title("Input Phase")
-axs[1, 1].imshow(single_pred_nuc[0], cmap="gray")
-axs[1, 1].set_title(f"Single Pred Nucleus\nSSIM: {ssim_nuc_single:.3f}")
-axs[1, 2].imshow(single_pred_mem[0], cmap="gray")
-axs[1, 2].set_title(f"Single Pred Membrane\nSSIM: {ssim_mem_single:.3f}")
-
-# Third row: TTA predictions
-axs[2, 0].imshow(source_tensor[0,0,0].cpu().numpy(), cmap="gray")
-axs[2, 0].set_title("Input Phase")
-axs[2, 1].imshow(tta_pred_nuc[0], cmap="gray")
-axs[2, 1].set_title(f"TTA Pred Nucleus\nSSIM: {ssim_nuc_tta:.3f}")
-axs[2, 2].imshow(tta_pred_mem[0], cmap="gray")
-axs[2, 2].set_title(f"TTA Pred Membrane\nSSIM: {ssim_mem_tta:.3f}")
-
-# Remove ticks
-for ax in axs.flat:
-    ax.set_xticks([])
-    ax.set_yticks([])
-
-plt.tight_layout()
-plt.show()
 
 # %% [markdown] tags=[]
 # <div class="alert alert-warning">
