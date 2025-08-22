@@ -403,9 +403,6 @@ BATCH_SIZE = 4
 source_channel = ["TODO"]
 target_channel = ["TODO", "TODO"]
 
-# #######################
-# ##### TODO ########
-# #######################
 data_module = HCSDataModule(
     data_path,
     z_window_size=1,
