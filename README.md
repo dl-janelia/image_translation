@@ -1,6 +1,6 @@
-# Exercise 6: Image translation - Part 1
+# Exercise 4: Image translation
 
-Written by Eduardo Hirata-Miyasaki, Ziwen Liu, and Shalin Mehta, CZ Biohub San Francisco with many inputs from Diane Adjavon for the DL@MBL2024 course
+Written by Eduardo Hirata-Miyasaki, Ziwen Liu, and Shalin Mehta, CZ Biohub San Francisco with many inputs from Diane Adjavon and Albert Dominguez Mantes for the AI@MBL2025 course
 
 ## Overview
 
@@ -10,7 +10,7 @@ This strategy solves the problem as "multi-spectral imaging", but is more compat
 Virtual staining is often a step towards multiple downstream analyses: segmentation, tracking, and cell state phenotyping.
 
 In this exercise, you will:
-- Train a model to predict the fluorescence images of nuclei and plasma membranes from QPI images
+- Train a model to predict the fluorescence images of nuclei and plasma membranes from QPI images using CytoLand
 - Make it robust to variations in imaging conditions using data augmentions
 - Segment the cells
 - Use regression and segmentation metrics to evalute the models
@@ -22,7 +22,7 @@ In this exercise, you will:
 
 ### Goals
 
-#### Part 1: Train a virtual staining model
+#### Part 1: Train a virtual staining model with Cytoland
 
   - Explore OME-Zarr using [iohub](https://czbiohub-sf.github.io/iohub/main/index.html)
   and the high-content-screen (HCS) format.
@@ -35,6 +35,9 @@ In this exercise, you will:
 #### Part 2:Evaluate the model to translate phase into fluorescence.
   - Compare the performance of your trained model with the _VSCyto2D_ pre-trained model.
   - Evaluate the model using pixel-level and instance-level metrics.
+
+### Part 2.5: Evaluate the model to translate fluorescence to phase
+  - Compare the model trained from fluorescence to phase
 
 #### Part 3: Visualize the image transforms learned by the model and explore the model's regime of validity
   - Visualize the first 3 principal componets mapped to a color space in each encoder and decoder block.
@@ -52,7 +55,7 @@ VisCy exploits recent advances in data and metadata formats
 
 ## Setup
 
-Make sure that you are inside of the `image_translation` folder by using the `cd` command to change directories if needed.
+Create an `mkdir image_translation` folder  and `cd image_translation` command into it.
 
 Run the setup script to create the environment for this exercise and download the dataset.
 ```bash
@@ -61,7 +64,7 @@ sh setup_student.sh
 ```
 Activate your environment
 ```bash
-conda activate 06_image_translation
+conda activate 04_image_translation
 ```
 
 ## Use vscode
@@ -80,13 +83,13 @@ jupyter lab
 
 ...and continue with the instructions in the notebook.
 
-If `06_image_translation` is not available as a kernel in jupyter, run:
+If `04_image_translation` is not available as a kernel in jupyter, run:
 
 ```
-python -m ipykernel install --user --name=06_image_translation
+python -m ipykernel install --user --name=04_image_translation
 ```
 
 ### References
 
-- [Liu, Z. and Hirata-Miyasaki, E. et al. (2024) Robust Virtual Staining of Cellular Landmarks](https://www.biorxiv.org/content/10.1101/2024.05.31.596901v2.full.pdf)
+- [Liu, Z. and Hirata-Miyasaki, E. et al. (2025) Robust Virtual Staining of Cellular Landmarks](https://www.nature.com/articles/s42256-025-01046-2)
 - [Guo et al. (2020) Revealing architectural order with quantitative label-free imaging and deep learning. eLife](https://elifesciences.org/articles/55502)
