@@ -138,7 +138,7 @@ seed_everything(42, workers=True)
 # Paths to data and log directory
 top_dir = Path(
     "/mnt/efs/aimbl_2025/data"
-).expanduser()  # If this fails, make sure this to point to the download directory
+) # If this fails, make sure this to point to the download directory
 
 # Path to the training data
 data_path = (
