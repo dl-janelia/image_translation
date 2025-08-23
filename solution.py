@@ -2,7 +2,7 @@
 # # Image translation (Virtual Staining)
 
 # Written by Eduardo Hirata-Miyasaki, Ziwen Liu, and Shalin Mehta, CZ Biohub San Francisco
-# Reviewed by AI@MBL TAs
+# Reviewed by Diane Adjavon and Albert Dominguez Mantes
 
 # ## Overview
 #
