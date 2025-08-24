@@ -1,6 +1,6 @@
 # Exercise 4: Image translation
 
-Written by Eduardo Hirata-Miyasaki, Ziwen Liu, and Shalin Mehta, CZ Biohub San Francisco with many inputs from Diane Adjavon and Albert Dominguez Mantes for the AI@MBL2025 course
+Written by Eduardo Hirata-Miyasaki, Ziwen Liu, and Shalin Mehta, CZ Biohub San Francisco with many inputs from Diane Adjavon and Albert Dominguez Mantes for the AI@MBL2025 course 🐙
 
 ## Overview
 
