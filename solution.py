@@ -1331,14 +1331,6 @@ test_segmentation_metrics = pd.DataFrame(
 # Opening the test dataset
 test_dataset = open_ome_zarr(test_data_path)
 
-# Creating an output store for the predictions and segmentations
-segmentation_store = open_ome_zarr(
-    output_segmentation_path,
-    channel_names=["nuc_pred", "mem_pred", "nuc_labels"],
-    mode="w",
-    layout="hcs",
-)
-
 # Looking at the test dataset
 print("Test dataset:")
 test_dataset.print_tree()
@@ -1508,9 +1500,18 @@ print(f"  Virtual (pretrained): {len(np.unique(pretrained_mem_seg)) - 1} objects
 
 # %%
 
+# Creating an output store for the predictions and segmentations
+segmentation_store = open_ome_zarr(
+    output_segmentation_path,
+    channel_names=["nuc_pred", "mem_pred", "nuc_labels"],
+    mode="w",
+    layout="hcs",
+)
+
 # Iterating through the test dataset positions to:
 total_positions = len(positions)
 CROP_SIZE = 768
+
 # Initializing the progress bar with the total number of positions
 with tqdm(total=total_positions, desc="Processing FOVs") as pbar:
     # Iterating through the test dataset positions
@@ -1524,10 +1525,10 @@ with tqdm(total=total_positions, desc="Processing FOVs") as pbar:
         else:
             Y_slice, X_slice = slice(None), slice(None)
         # Getting the arrays and the center slices
-        phase_image = pos.data[:, phase_cidx : phase_cidx + 1, Z_slice]
-        target_nucleus = pos.data[0, nuc_cidx : nuc_cidx + 1, Z_slice]
-        target_membrane = pos.data[0, mem_cidx : mem_cidx + 1, Z_slice]
-        target_nuc_label = pos.data[0, nuc_label_cidx : nuc_label_cidx + 1, Z_slice]
+        phase_image = pos.data[:, phase_cidx : phase_cidx + 1, Z_slice, Y_slice, X_slice]
+        target_nucleus = pos.data[0, nuc_cidx : nuc_cidx + 1, Z_slice, Y_slice, X_slice]
+        target_membrane = pos.data[0, mem_cidx : mem_cidx + 1, Z_slice, Y_slice, X_slice]
+        target_nuc_label = pos.data[0, nuc_label_cidx : nuc_label_cidx + 1, Z_slice, Y_slice, X_slice]
 
         # normalize the phase
         phase_image = normalize_fov(phase_image)
