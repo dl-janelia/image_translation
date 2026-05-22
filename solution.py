@@ -1,7 +1,7 @@
 # %% [markdown] tags=[]
 # # Image translation (Virtual Staining)
 
-# Written by Eduardo Hirata-Miyasaki, Ziwen Liu, and Shalin Mehta, CZ Biohub San Francisco
+# Written by Eduardo Hirata-Miyasaki, Ziwen Liu, and Shalin Mehta, Biohub San Francisco
 
 # ## Overview
 #
@@ -187,7 +187,9 @@ log_dir = training_top_dir / "06_image_translation/logs/"
 log_dir.mkdir(parents=True, exist_ok=True)
 
 if not data_path.exists():
-    raise FileNotFoundError(f"Data not found at {data_path}. Please check the top_dir and data_path variables.")
+    raise FileNotFoundError(
+        f"Data not found at {data_path}. Please check the top_dir and data_path variables."
+    )
 
 # %% [markdown] tags=[]
 # The next cell starts tensorboard.
@@ -350,8 +352,12 @@ def log_batch_tensorboard(batch, batchno, writer, card_name):
         None
     """
     batch_phase = batch["source"][:, :, 0, :, :]  # batch_size x z_size x Y x X tensor.
-    batch_membrane = batch["target"][:, 1, 0, :, :].unsqueeze(1)  # batch_size x 1 x Y x X tensor.
-    batch_nuclei = batch["target"][:, 0, 0, :, :].unsqueeze(1)  # batch_size x 1 x Y x X tensor.
+    batch_membrane = batch["target"][:, 1, 0, :, :].unsqueeze(
+        1
+    )  # batch_size x 1 x Y x X tensor.
+    batch_nuclei = batch["target"][:, 0, 0, :, :].unsqueeze(
+        1
+    )  # batch_size x 1 x Y x X tensor.
 
     p1, p99 = np.percentile(batch_membrane, (0.1, 99.9))
     batch_membrane = np.clip((batch_membrane - p1) / (p99 - p1), 0, 1)
@@ -387,8 +393,12 @@ def log_batch_jupyter(batch):
     """
     batch_phase = batch["source"][:, :, 0, :, :]  # batch_size x z_size x Y x X tensor.
     batch_size = batch_phase.shape[0]
-    batch_membrane = batch["target"][:, 1, 0, :, :].unsqueeze(1)  # batch_size x 1 x Y x X tensor.
-    batch_nuclei = batch["target"][:, 0, 0, :, :].unsqueeze(1)  # batch_size x 1 x Y x X tensor.
+    batch_membrane = batch["target"][:, 1, 0, :, :].unsqueeze(
+        1
+    )  # batch_size x 1 x Y x X tensor.
+    batch_nuclei = batch["target"][:, 0, 0, :, :].unsqueeze(
+        1
+    )  # batch_size x 1 x Y x X tensor.
 
     p1, p99 = np.percentile(batch_membrane, (0.1, 99.9))
     batch_membrane = np.clip((batch_membrane - p1) / (p99 - p1), 0, 1)
@@ -401,7 +411,9 @@ def log_batch_jupyter(batch):
 
     n_channels = batch["target"].shape[1] + batch["source"].shape[1]
     plt.figure()
-    fig, axes = plt.subplots(batch_size, n_channels, figsize=(n_channels * 2, batch_size * 2))
+    fig, axes = plt.subplots(
+        batch_size, n_channels, figsize=(n_channels * 2, batch_size * 2)
+    )
     [N, C, H, W] = batch_phase.shape
     for sample_id in range(batch_size):
         axes[sample_id, 0].imshow(batch_phase[sample_id, 0])
@@ -827,7 +839,9 @@ phase2fluor_2D_data = HCSDataModule(
 )
 phase2fluor_2D_data.setup("fit")
 # fast_dev_run runs a single batch of data through the model to check for errors.
-trainer = VisCyTrainer(accelerator="gpu", devices=[GPU_ID], precision="16-mixed", fast_dev_run=True)
+trainer = VisCyTrainer(
+    accelerator="gpu", devices=[GPU_ID], precision="16-mixed", fast_dev_run=True
+)
 
 # trainer class takes the model and the data module as inputs.
 trainer.fit(phase2fluor_model, datamodule=phase2fluor_2D_data)
@@ -927,7 +941,9 @@ phase2fluor_2D_data.setup("fit")
 # datamodule.setup(), pulls batches from train_dataloader(), invokes
 # model.training_step(batch), runs loss.backward() + optimizer.step() +
 # zero_grad(), runs validation, logs to TensorBoard, and saves checkpoints.
-trainer = VisCyTrainer(accelerator="gpu", devices=[GPU_ID], precision="16-mixed", fast_dev_run=True)
+trainer = VisCyTrainer(
+    accelerator="gpu", devices=[GPU_ID], precision="16-mixed", fast_dev_run=True
+)
 trainer.fit(phase2fluor_model, datamodule=phase2fluor_2D_data)
 
 # %% [markdown] tags=[]
@@ -1162,7 +1178,9 @@ test_data = HCSDataModule(
 )
 test_data.setup("test")
 
-test_metrics = pd.DataFrame(columns=["pearson_nuc", "microSSIM_nuc", "pearson_mem", "microSSIM_mem"])
+test_metrics = pd.DataFrame(
+    columns=["pearson_nuc", "microSSIM_nuc", "pearson_mem", "microSSIM_mem"]
+)
 
 
 # %%
@@ -1174,12 +1192,16 @@ def normalize_fov(input: ArrayLike):
     return (input - mean) / std
 
 
-for i, sample in enumerate(tqdm(test_data.test_dataloader(), desc="Computing metrics per sample")):
+for i, sample in enumerate(
+    tqdm(test_data.test_dataloader(), desc="Computing metrics per sample")
+):
     phase_image = sample["source"].to(phase2fluor_model.device)
     with torch.inference_mode():  # turn off gradient computation.
         predicted_image = phase2fluor_model(phase_image)
 
-    target_image = sample["target"].cpu().numpy().squeeze(0)  # Squeezing batch dimension.
+    target_image = (
+        sample["target"].cpu().numpy().squeeze(0)
+    )  # Squeezing batch dimension.
     predicted_image = predicted_image.cpu().numpy().squeeze(0)
     phase_image = phase_image.cpu().numpy().squeeze(0)
     target_mem = normalize_fov(target_image[1, 0, :, :])
@@ -1237,7 +1259,12 @@ for i, sample in enumerate(test_data.test_dataloader()):
     axes[0].set_title(channel_titles[0])
 
     with torch.inference_mode():  # turn off gradient computation.
-        predicted_image = phase2fluor_model(phase_image.to(phase2fluor_model.device)).cpu().numpy().squeeze(0)
+        predicted_image = (
+            phase2fluor_model(phase_image.to(phase2fluor_model.device))
+            .cpu()
+            .numpy()
+            .squeeze(0)
+        )
 
     target_image = sample["target"].cpu().numpy().squeeze(0)
     phase_raw = process_image(phase_image[0, 0, 0])
@@ -1293,7 +1320,9 @@ for i, sample in enumerate(test_data.test_dataloader()):
 ##### TODO ######
 #################
 # Let's load the pretrained model checkpoint
-pretrained_model_ckpt = top_dir / ...  ## Add the path to the "VSCyto2D/epoch=399-step=23200.ckpt"
+pretrained_model_ckpt = (
+    top_dir / ...
+)  ## Add the path to the "VSCyto2D/epoch=399-step=23200.ckpt"
 
 # TODO: Load the phase2fluor_config just like the model you trained
 phase2fluor_config = dict()  ##
@@ -1344,7 +1373,12 @@ pretrained_phase2fluor.eval()
 ### Re-load your trained model
 # NOTE: assuming the latest checkpoint it your latest training and model
 phase2fluor_model_ckpt = natsorted(
-    glob(str(training_top_dir / "06_image_translation/logs/phase2fluor/version*/checkpoints/*.ckpt"))
+    glob(
+        str(
+            training_top_dir
+            / "06_image_translation/logs/phase2fluor/version*/checkpoints/*.ckpt"
+        )
+    )
 )[-1]
 
 # NOTE: if their model didn't go past epoch 5, lost their checkpoint, or didnt train anything.
@@ -1407,11 +1441,15 @@ phase2fluor_model.eval()
 # %%
 # Create cellpose model once for reuse
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-cellpose_model = models.CellposeModel(gpu=True if device.type == "cuda" else False, device=device)
+cellpose_model = models.CellposeModel(
+    gpu=True if device.type == "cuda" else False, device=device
+)
 
 
 # Define the function to compute the cellpose segmentation
-def cellpose_segmentation(prediction: ArrayLike, target: ArrayLike) -> Tuple[torch.ShortTensor]:
+def cellpose_segmentation(
+    prediction: ArrayLike, target: ArrayLike
+) -> Tuple[torch.ShortTensor]:
     # NOTE these are hardcoded for this notebook and A549 dataset
 
     # Convert 2D arrays to 3D format expected by cellpose v4.0.1+
@@ -1440,11 +1478,20 @@ def cellpose_segmentation(prediction: ArrayLike, target: ArrayLike) -> Tuple[tor
 # %%
 # Setting the paths for the test data and the output segmentation
 test_data_path = top_dir / "test/a549_hoechst_cellmask_test.zarr"
-output_segmentation_path = training_top_dir / "06_image_translation/pretrained_model_segmentations.zarr"
+output_segmentation_path = (
+    training_top_dir / "06_image_translation/pretrained_model_segmentations.zarr"
+)
 
 # Creating the dataframes to store the pixel and segmentation metrics
 test_pixel_metrics = pd.DataFrame(
-    columns=["model", "fov", "pearson_nuc", "microSSIM_nuc", "pearson_mem", "microSSIM_mem"]
+    columns=[
+        "model",
+        "fov",
+        "pearson_nuc",
+        "microSSIM_nuc",
+        "pearson_mem",
+        "microSSIM_mem",
+    ]
 )
 test_segmentation_metrics = pd.DataFrame(
     columns=[
@@ -1519,14 +1566,20 @@ x_end = min(sample_nucleus.shape[3], center_x + crop_size // 2)
 
 # Crop fluorescence data
 sample_nucleus_crop = min_max_scale(sample_nucleus[0, 0, y_start:y_end, x_start:x_end])
-sample_membrane_crop = min_max_scale(sample_membrane[0, 0, y_start:y_end, x_start:x_end])
+sample_membrane_crop = min_max_scale(
+    sample_membrane[0, 0, y_start:y_end, x_start:x_end]
+)
 
 # Generate virtual stained data from phase (trained model)
 sample_phase_tensor = torch.tensor(sample_phase, dtype=torch.float32).to(device)
 with torch.inference_mode():
     predicted_image = phase2fluor_model(sample_phase_tensor)
-predicted_nuc_crop = min_max_scale(predicted_image.cpu().numpy()[0, 0, 0, y_start:y_end, x_start:x_end])
-predicted_mem_crop = min_max_scale(predicted_image.cpu().numpy()[0, 1, 0, y_start:y_end, x_start:x_end])
+predicted_nuc_crop = min_max_scale(
+    predicted_image.cpu().numpy()[0, 0, 0, y_start:y_end, x_start:x_end]
+)
+predicted_mem_crop = min_max_scale(
+    predicted_image.cpu().numpy()[0, 1, 0, y_start:y_end, x_start:x_end]
+)
 
 # Generate virtual stained data from pretrained model
 with torch.inference_mode():
@@ -1541,12 +1594,16 @@ predicted_mem_pretrained_crop = min_max_scale(
 # Run segmentation on all nuclei
 fluor_nuc_seg, _ = cellpose_segmentation(sample_nucleus_crop, sample_nucleus_crop)
 virtual_nuc_seg, _ = cellpose_segmentation(predicted_nuc_crop, predicted_nuc_crop)
-pretrained_nuc_seg, _ = cellpose_segmentation(predicted_nuc_pretrained_crop, predicted_nuc_pretrained_crop)
+pretrained_nuc_seg, _ = cellpose_segmentation(
+    predicted_nuc_pretrained_crop, predicted_nuc_pretrained_crop
+)
 
 # Run segmentation on all membranes (using nucleus parameters for consistency)
 fluor_mem_seg, _ = cellpose_segmentation(sample_membrane_crop, sample_membrane_crop)
 virtual_mem_seg, _ = cellpose_segmentation(predicted_mem_crop, predicted_mem_crop)
-pretrained_mem_seg, _ = cellpose_segmentation(predicted_mem_pretrained_crop, predicted_mem_pretrained_crop)
+pretrained_mem_seg, _ = cellpose_segmentation(
+    predicted_mem_pretrained_crop, predicted_mem_pretrained_crop
+)
 
 # Convert to numpy
 fluor_nuc_seg = fluor_nuc_seg.numpy()
@@ -1602,7 +1659,9 @@ axes[2, 0].imshow(predicted_nuc_pretrained_crop, cmap="gray")
 axes[2, 0].set_title("Virtual Nucleus (Pretrained)")
 axes[2, 0].axis("off")
 
-pretrained_nuc_overlay = label2rgb(pretrained_nuc_seg, predicted_nuc_pretrained_crop, bg_label=0)
+pretrained_nuc_overlay = label2rgb(
+    pretrained_nuc_seg, predicted_nuc_pretrained_crop, bg_label=0
+)
 axes[2, 1].imshow(pretrained_nuc_overlay)
 axes[2, 1].set_title("Nucleus Segmentation")
 axes[2, 1].axis("off")
@@ -1611,7 +1670,9 @@ axes[2, 2].imshow(predicted_mem_pretrained_crop, cmap="gray")
 axes[2, 2].set_title("Virtual Membrane (Pretrained)")
 axes[2, 2].axis("off")
 
-pretrained_mem_overlay = label2rgb(pretrained_mem_seg, predicted_mem_pretrained_crop, bg_label=0)
+pretrained_mem_overlay = label2rgb(
+    pretrained_mem_seg, predicted_mem_pretrained_crop, bg_label=0
+)
 axes[2, 3].imshow(pretrained_mem_overlay)
 axes[2, 3].set_title("Membrane Segmentation")
 axes[2, 3].axis("off")
@@ -1660,7 +1721,9 @@ with tqdm(total=total_positions, desc="Processing FOVs") as pbar:
             predicted_image_pretrained = pretrained_phase2fluor(phase_image)
 
         # Loading and Normalizing the target and predictions for both models
-        predicted_image_phase2fluor = predicted_image_phase2fluor.cpu().numpy().squeeze(0)
+        predicted_image_phase2fluor = (
+            predicted_image_phase2fluor.cpu().numpy().squeeze(0)
+        )
         predicted_image_pretrained = predicted_image_pretrained.cpu().numpy().squeeze(0)
         phase_image = phase_image.cpu().numpy().squeeze(0)
 
@@ -1668,20 +1731,36 @@ with tqdm(total=total_positions, desc="Processing FOVs") as pbar:
         target_nuc = min_max_scale(target_nucleus[0, 0])
 
         # Normalizing the dataset using min-max scaling
-        predicted_mem_phase2fluor = min_max_scale(predicted_image_phase2fluor[1, :, :, :].squeeze(0))
-        predicted_nuc_phase2fluor = min_max_scale(predicted_image_phase2fluor[0, :, :, :].squeeze(0))
+        predicted_mem_phase2fluor = min_max_scale(
+            predicted_image_phase2fluor[1, :, :, :].squeeze(0)
+        )
+        predicted_nuc_phase2fluor = min_max_scale(
+            predicted_image_phase2fluor[0, :, :, :].squeeze(0)
+        )
 
-        predicted_mem_pretrained = min_max_scale(predicted_image_pretrained[1, :, :, :].squeeze(0))
-        predicted_nuc_pretrained = min_max_scale(predicted_image_pretrained[0, :, :, :].squeeze(0))
+        predicted_mem_pretrained = min_max_scale(
+            predicted_image_pretrained[1, :, :, :].squeeze(0)
+        )
+        predicted_nuc_pretrained = min_max_scale(
+            predicted_image_pretrained[0, :, :, :].squeeze(0)
+        )
 
         #######  Pixel-based Metrics ############
         # Compute microSSIM and Pearson correlation for phase2fluor_model
         pbar.set_description(f"Processing FOV {fov} - Computing Pixel Metrics")
         pbar.refresh()
-        ssim_nuc_phase2fluor = micro_structural_similarity(target_nuc, predicted_nuc_phase2fluor)
-        ssim_mem_phase2fluor = micro_structural_similarity(target_mem, predicted_mem_phase2fluor)
-        pearson_nuc_phase2fluor = np.corrcoef(target_nuc.flatten(), predicted_nuc_phase2fluor.flatten())[0, 1]
-        pearson_mem_phase2fluor = np.corrcoef(target_mem.flatten(), predicted_mem_phase2fluor.flatten())[0, 1]
+        ssim_nuc_phase2fluor = micro_structural_similarity(
+            target_nuc, predicted_nuc_phase2fluor
+        )
+        ssim_mem_phase2fluor = micro_structural_similarity(
+            target_mem, predicted_mem_phase2fluor
+        )
+        pearson_nuc_phase2fluor = np.corrcoef(
+            target_nuc.flatten(), predicted_nuc_phase2fluor.flatten()
+        )[0, 1]
+        pearson_mem_phase2fluor = np.corrcoef(
+            target_mem.flatten(), predicted_mem_phase2fluor.flatten()
+        )[0, 1]
 
         test_pixel_metrics.loc[len(test_pixel_metrics)] = {
             "model": "phase2fluor",
@@ -1692,10 +1771,18 @@ with tqdm(total=total_positions, desc="Processing FOVs") as pbar:
             "microSSIM_mem": ssim_mem_phase2fluor,
         }
         # Compute microSSIM and Pearson correlation for pretrained_model
-        ssim_nuc_pretrained = micro_structural_similarity(target_nuc, predicted_nuc_pretrained)
-        ssim_mem_pretrained = micro_structural_similarity(target_mem, predicted_mem_pretrained)
-        pearson_nuc_pretrained = np.corrcoef(target_nuc.flatten(), predicted_nuc_pretrained.flatten())[0, 1]
-        pearson_mem_pretrained = np.corrcoef(target_mem.flatten(), predicted_mem_pretrained.flatten())[0, 1]
+        ssim_nuc_pretrained = micro_structural_similarity(
+            target_nuc, predicted_nuc_pretrained
+        )
+        ssim_mem_pretrained = micro_structural_similarity(
+            target_mem, predicted_mem_pretrained
+        )
+        pearson_nuc_pretrained = np.corrcoef(
+            target_nuc.flatten(), predicted_nuc_pretrained.flatten()
+        )[0, 1]
+        pearson_mem_pretrained = np.corrcoef(
+            target_mem.flatten(), predicted_mem_pretrained.flatten()
+        )[0, 1]
 
         test_pixel_metrics.loc[len(test_pixel_metrics)] = {
             "model": "pretrained_phase2fluor",
@@ -1710,7 +1797,9 @@ with tqdm(total=total_positions, desc="Processing FOVs") as pbar:
         # Load the manually curated nuclei target label
         pbar.set_description(f"Processing FOV {fov} - Computing Segmentation Metrics")
         pbar.refresh()
-        pred_label, target_label = cellpose_segmentation(predicted_nuc_phase2fluor, target_nuc)
+        pred_label, target_label = cellpose_segmentation(
+            predicted_nuc_phase2fluor, target_nuc
+        )
         # Binary labels
         pred_label_binary = pred_label > 0
         target_label_binary = target_label > 0
@@ -1724,7 +1813,9 @@ with tqdm(total=total_positions, desc="Processing FOVs") as pbar:
             "model": "phase2fluor",
             "fov": fov,
             "masks_per_fov": num_masks_fov,
-            "accuracy": accuracy(pred_label_binary, target_label_binary, task="binary").item(),
+            "accuracy": accuracy(
+                pred_label_binary, target_label_binary, task="binary"
+            ).item(),
             "dice": dice_score(
                 pred_label_binary.long()[None],
                 target_label_binary.long()[None],
@@ -1732,14 +1823,18 @@ with tqdm(total=total_positions, desc="Processing FOVs") as pbar:
                 input_format="index",
                 average="micro",
             ).item(),
-            "jaccard": jaccard_index(pred_label_binary, target_label_binary, task="binary").item(),
+            "jaccard": jaccard_index(
+                pred_label_binary, target_label_binary, task="binary"
+            ).item(),
             "mAP": coco_metrics["map"].item(),
             "mAP_50": coco_metrics["map_50"].item(),
             "mAP_75": coco_metrics["map_75"].item(),
             "mAR_100": coco_metrics["mar_100"].item(),
         }
 
-        pred_label, target_label = cellpose_segmentation(predicted_nuc_pretrained, target_nuc)
+        pred_label, target_label = cellpose_segmentation(
+            predicted_nuc_pretrained, target_nuc
+        )
 
         # Binary labels
         pred_label_binary = pred_label > 0
@@ -1754,7 +1849,9 @@ with tqdm(total=total_positions, desc="Processing FOVs") as pbar:
             "model": "phase2fluor_pretrained",
             "fov": fov,
             "masks_per_fov": num_masks_fov,
-            "accuracy": accuracy(pred_label_binary, target_label_binary, task="binary").item(),
+            "accuracy": accuracy(
+                pred_label_binary, target_label_binary, task="binary"
+            ).item(),
             "dice": dice_score(
                 pred_label_binary.long()[None],
                 target_label_binary.long()[None],
@@ -1762,7 +1859,9 @@ with tqdm(total=total_positions, desc="Processing FOVs") as pbar:
                 input_format="index",
                 average="micro",
             ).item(),
-            "jaccard": jaccard_index(pred_label_binary, target_label_binary, task="binary").item(),
+            "jaccard": jaccard_index(
+                pred_label_binary, target_label_binary, task="binary"
+            ).item(),
             "mAP": coco_metrics["map"].item(),
             "mAP_50": coco_metrics["map_50"].item(),
             "mAP_75": coco_metrics["map_75"].item(),
@@ -1787,7 +1886,9 @@ segmentation_store.close()
 # %%
 # Save the test metrics into a dataframe
 pixel_metrics_path = training_top_dir / "06_image_translation/VS_metrics_pixel.csv"
-segmentation_metrics_path = training_top_dir / "06_image_translation/VS_metrics_segments.csv"
+segmentation_metrics_path = (
+    training_top_dir / "06_image_translation/VS_metrics_segments.csv"
+)
 test_pixel_metrics.to_csv(pixel_metrics_path)
 test_segmentation_metrics.to_csv(segmentation_metrics_path)
 
@@ -1891,9 +1992,13 @@ axs[2, 2].set_title("Pred Membrane Pretrained")
 # Fourth row: target_nuc, segment_nuc, segment_nuc2
 axs[3, 0].imshow(target_nuc[y_slice, x_slice], cmap="gray")
 axs[3, 0].set_title("Target Nucleus")
-axs[3, 1].imshow(label2rgb(np.array(target_label[y_slice, x_slice], dtype="int")), cmap="gray")
+axs[3, 1].imshow(
+    label2rgb(np.array(target_label[y_slice, x_slice], dtype="int")), cmap="gray"
+)
 axs[3, 1].set_title("Segmented Nucleus (Target)")
-axs[3, 2].imshow(label2rgb(np.array(pred_label[y_slice, x_slice], dtype="int")), cmap="gray")
+axs[3, 2].imshow(
+    label2rgb(np.array(pred_label[y_slice, x_slice], dtype="int")), cmap="gray"
+)
 axs[3, 2].set_title("Segmented Nucleus")
 
 # Hide axes ticks
@@ -1947,7 +2052,9 @@ plt.show()
 
 # %%
 # Path to the pretrained fluorescence to phase model checkpoint
-fluor2phase_model_path = top_dir / "pretrained_models/AIMBL_Demo/fluor2phase_step668.ckpt"
+fluor2phase_model_path = (
+    top_dir / "pretrained_models/AIMBL_Demo/fluor2phase_step668.ckpt"
+)
 
 
 # %% tags=["task"]
@@ -2064,12 +2171,18 @@ fluor2phase_config = dict(
 )
 
 # Create the fluorescence to phase model architecture
-print("Fluorescence-to-phase model created (note: using untrained model for demonstration)")
+print(
+    "Fluorescence-to-phase model created (note: using untrained model for demonstration)"
+)
 print("In practice, load a pretrained checkpoint for meaningful results")
 
 print("\nLoading pretrained fluorescence-to-phase model...")
-fluor2phase_model_path = top_dir / "pretrained_models/AIMBL_Demo/fluor2phase_step668.ckpt"
-assert fluor2phase_model_path.exists(), "Fluorescence-to-phase model checkpoint not found. Please check the path."
+fluor2phase_model_path = (
+    top_dir / "pretrained_models/AIMBL_Demo/fluor2phase_step668.ckpt"
+)
+assert fluor2phase_model_path.exists(), (
+    "Fluorescence-to-phase model checkpoint not found. Please check the path."
+)
 fluor2phase_model = VSUNet.load_from_checkpoint(
     fluor2phase_model_path, model_config=fluor2phase_config, architecture="fcmae"
 )
@@ -2281,8 +2394,12 @@ tta_pred_mem = ...
 print("\nMetrics Comparison:")
 print(f"{'Metric':<20} {'Single':<10} {'TTA':<10} {'Improvement':<12}")
 print("-" * 55)
-print(f"{'SSIM Nucleus':<20} {ssim_nuc_single:.3f}     {ssim_nuc_tta:.3f}     {ssim_nuc_tta - ssim_nuc_single:+.3f}")
-print(f"{'SSIM Membrane':<20} {ssim_mem_single:.3f}     {ssim_mem_tta:.3f}     {ssim_mem_tta - ssim_mem_single:+.3f}")
+print(
+    f"{'SSIM Nucleus':<20} {ssim_nuc_single:.3f}     {ssim_nuc_tta:.3f}     {ssim_nuc_tta - ssim_nuc_single:+.3f}"
+)
+print(
+    f"{'SSIM Membrane':<20} {ssim_mem_single:.3f}     {ssim_mem_tta:.3f}     {ssim_mem_tta - ssim_mem_single:+.3f}"
+)
 print(
     f"{'Pearson Nucleus':<20} {pearson_nuc_single:.3f}     {pearson_nuc_tta:.3f}     {pearson_nuc_tta - pearson_nuc_single:+.3f}"
 )
@@ -2362,21 +2479,37 @@ with torch.inference_mode():
 
 # Normalize data range to 0-1 before computing metrics
 target_nuc[0] = rescale_intensity(target_nuc[0], in_range="image", out_range=(0, 1))
-single_pred_nuc[0] = rescale_intensity(single_pred_nuc[0], in_range="image", out_range=(0, 1))
+single_pred_nuc[0] = rescale_intensity(
+    single_pred_nuc[0], in_range="image", out_range=(0, 1)
+)
 target_mem[0] = rescale_intensity(target_mem[0], in_range="image", out_range=(0, 1))
-single_pred_mem[0] = rescale_intensity(single_pred_mem[0], in_range="image", out_range=(0, 1))
+single_pred_mem[0] = rescale_intensity(
+    single_pred_mem[0], in_range="image", out_range=(0, 1)
+)
 tta_pred_nuc[0] = rescale_intensity(tta_pred_nuc[0], in_range="image", out_range=(0, 1))
 tta_pred_mem[0] = rescale_intensity(tta_pred_mem[0], in_range="image", out_range=(0, 1))
 
 # Calculate metrics
-ssim_nuc_single = metrics.structural_similarity(target_nuc[0], single_pred_nuc[0], data_range=1)
-ssim_mem_single = metrics.structural_similarity(target_mem[0], single_pred_mem[0], data_range=1)
-pearson_nuc_single = np.corrcoef(target_nuc[0].flatten(), single_pred_nuc[0].flatten())[0, 1]
-pearson_mem_single = np.corrcoef(target_mem[0].flatten(), single_pred_mem[0].flatten())[0, 1]
+ssim_nuc_single = metrics.structural_similarity(
+    target_nuc[0], single_pred_nuc[0], data_range=1
+)
+ssim_mem_single = metrics.structural_similarity(
+    target_mem[0], single_pred_mem[0], data_range=1
+)
+pearson_nuc_single = np.corrcoef(target_nuc[0].flatten(), single_pred_nuc[0].flatten())[
+    0, 1
+]
+pearson_mem_single = np.corrcoef(target_mem[0].flatten(), single_pred_mem[0].flatten())[
+    0, 1
+]
 
 # TTA prediction metrics
-ssim_nuc_tta = metrics.structural_similarity(target_nuc[0], tta_pred_nuc[0], data_range=1)
-ssim_mem_tta = metrics.structural_similarity(target_mem[0], tta_pred_mem[0], data_range=1)
+ssim_nuc_tta = metrics.structural_similarity(
+    target_nuc[0], tta_pred_nuc[0], data_range=1
+)
+ssim_mem_tta = metrics.structural_similarity(
+    target_mem[0], tta_pred_mem[0], data_range=1
+)
 pearson_nuc_tta = np.corrcoef(target_nuc[0].flatten(), tta_pred_nuc[0].flatten())[0, 1]
 pearson_mem_tta = np.corrcoef(target_mem[0].flatten(), tta_pred_mem[0].flatten())[0, 1]
 
@@ -2384,8 +2517,12 @@ pearson_mem_tta = np.corrcoef(target_mem[0].flatten(), tta_pred_mem[0].flatten()
 print("\nMetrics Comparison:")
 print(f"{'Metric':<20} {'Single':<10} {'TTA':<10} {'Improvement':<12}")
 print("-" * 55)
-print(f"{'SSIM Nucleus':<20} {ssim_nuc_single:.3f}     {ssim_nuc_tta:.3f}     {ssim_nuc_tta - ssim_nuc_single:+.3f}")
-print(f"{'SSIM Membrane':<20} {ssim_mem_single:.3f}     {ssim_mem_tta:.3f}     {ssim_mem_tta - ssim_mem_single:+.3f}")
+print(
+    f"{'SSIM Nucleus':<20} {ssim_nuc_single:.3f}     {ssim_nuc_tta:.3f}     {ssim_nuc_tta - ssim_nuc_single:+.3f}"
+)
+print(
+    f"{'SSIM Membrane':<20} {ssim_mem_single:.3f}     {ssim_mem_tta:.3f}     {ssim_mem_tta - ssim_mem_single:+.3f}"
+)
 print(
     f"{'Pearson Nucleus':<20} {pearson_nuc_single:.3f}     {pearson_nuc_tta:.3f}     {pearson_nuc_tta - pearson_nuc_single:+.3f}"
 )
@@ -2509,7 +2646,9 @@ def feature_map_pca(feature_map: np.array, n_components: int = 8) -> PCA:
 def pcs_to_rgb(feat: np.ndarray, n_components: int = 8) -> np.ndarray:
     pca = feature_map_pca(feat[0], n_components=n_components)
     pc_first_3 = pca.components_[:3].reshape(3, *feat.shape[-2:])
-    return np.stack([rescale_intensity(pc, out_range=(0, 1)) for pc in pc_first_3], axis=-1)
+    return np.stack(
+        [rescale_intensity(pc, out_range=(0, 1)) for pc in pc_first_3], axis=-1
+    )
 
 
 # %%
@@ -2543,7 +2682,9 @@ norm_meta = test_dataset.zattrs["normalization"]["Phase3D"]["dataset_statistics"
 Y, X = test_dataset[f"0/0/{fov}"].data.shape[-2:]
 test_dataset.channel_names
 phase_idx = test_dataset.channel_names.index("Phase3D")
-assert crop // 2 < Y and crop // 2 < Y, "Crop size larger than the image. Check the image shape"
+assert crop // 2 < Y and crop // 2 < Y, (
+    "Crop size larger than the image. Check the image shape"
+)
 
 phase_img = test_dataset[f"0/0/{fov}/0"][
     :,
@@ -2596,7 +2737,9 @@ model = VSUNet.load_from_checkpoint(
 # Extract features
 with torch.inference_mode():
     # encoder
-    encoder_features = model.model.encoder(torch.from_numpy(phase_img.astype(np.float32)).to(model.device))[0]
+    encoder_features = model.model.encoder(
+        torch.from_numpy(phase_img.astype(np.float32)).to(model.device)
+    )[0]
     encoder_features_np = [f.detach().cpu().numpy() for f in encoder_features]
 
     # Print the encoder features shapes
@@ -2636,7 +2779,9 @@ def rescale_clip(image: torch.Tensor) -> np.ndarray:
     return rescale_intensity(image, out_range=(0, 1))[..., None].repeat(3, axis=-1)
 
 
-def composite_nuc_mem(image: torch.Tensor, nuc_color: Color, mem_color: Color) -> np.ndarray:
+def composite_nuc_mem(
+    image: torch.Tensor, nuc_color: Color, mem_color: Color
+) -> np.ndarray:
     c_nuc = rescale_clip(image[0]) * nuc_color
     c_mem = rescale_clip(image[1]) * mem_color
     return rescale_intensity(c_nuc + c_mem, out_range=(0, 1))
