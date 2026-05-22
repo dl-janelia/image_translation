@@ -2,20 +2,19 @@
 # # Image translation (Virtual Staining)
 
 # Written by Eduardo Hirata-Miyasaki, Ziwen Liu, and Shalin Mehta, CZ Biohub San Francisco
-# Reviewed by Diane Adjavon and Albert Dominguez Mantes
 
 # ## Overview
 #
-# In this exercise, we will _virtually stain_ the nuclei and plasma membrane from the quantitative phase image (QPI), i.e., translate QPI images into fluoresence images of nuclei and plasma membranes.
+# In this exercise, we will _virtually stain_ the nuclei and plasma membrane from the quantitative phase image (QPI), i.e., translate QPI images into fluorescence images of nuclei and plasma membranes.
 # QPI encodes multiple cellular structures and virtual staining decomposes these structures. After the model is trained, one only needs to acquire label-free QPI data.
 # This strategy solves the same problem as "multi-spectral imaging", but is more compatible with live cell imaging and high-throughput screening.
 # Virtual staining is often a step towards multiple downstream analyses: segmentation, tracking, and cell state phenotyping.
 #
 # In this exercise, you will:
 # - Train a model to predict the fluorescence images of nuclei and plasma membranes from QPI images
-# - Make it robust to variations in imaging conditions using data augmentions
+# - Make it robust to variations in imaging conditions using data augmentations
 # - Segment the cells using Cellpose
-# - Use regression and segmentation metrics to evalute the models
+# - Use regression and segmentation metrics to evaluate the models
 # - Visualize the image transform learned by the model
 # - Understand the failure modes of the trained model
 #
@@ -23,29 +22,13 @@
 # (Click on image to play video)
 #
 # %% [markdown] tags=[]
-# <div class="alert alert-success">
-# The exercise is organized in 3 parts:
-
-# <ul>
-# <li><b>Part 1</b> - Train a virtual staining model using iohub (I/O library), VisCy dataloaders, and tensorboard</li>
-# <li><b>Part 2</b> - Evaluate the model to translate phase into fluorescence.</li>
-# <li><b>Part 3</b> - Visualize the image transforms learned by the model and explore the model's regime of validity.</li>
-# </ul>
-
-# </div>
-# %% [markdown] tags=[]
-# <div class="alert alert-danger">
-# Set your python kernel to <span style="color:black;">04_image_translation</span>
-# </div>
-
-# %% [markdown] tags=[]
 # ### Goals
 
 # #### Part 1: Train a virtual staining model
 #
 #   - Explore OME-Zarr using [iohub](https://czbiohub-sf.github.io/iohub/main/index.html)
 #   and the high-content-screen (HCS) format.
-#   - Use our `viscy.data.HCSDataloader()` dataloader and explore the  3 channel (phase, fluoresecence nuclei and cell membrane)
+#   - Use our `viscy.data.HCSDataloader()` dataloader and explore the  3 channel (phase, fluorescence nuclei and cell membrane)
 #   A549 cell dataset.
 #   - Implement data augmentations [MONAI](https://monai.io/) to train a robust model to imaging parameters and conditions.
 #   - Use tensorboard to log the augmentations, training and validation losses and batches
@@ -56,7 +39,7 @@
 #   - Evaluate the model using pixel-level and instance-level metrics.
 #
 # #### Part 3: Visualize the image transforms learned by the model and explore the model's regime of validity
-#   - Visualize the first 3 principal componets mapped to a color space in each encoder and decoder block.
+#   - Visualize the first 3 principal components mapped to a color space in each encoder and decoder block.
 #   - Explore the model's regime of validity by applying blurring and scaling transforms to the input phase image.
 #
 # #### For more information:
@@ -69,8 +52,56 @@
 # [PyTorch Lightning](https://lightning.ai/) and [MONAI](https://monai.io/).
 
 # ### References
-# - [Liu, Z. and Hirata-Miyasaki, E. et al. (2025) Robust Virtual Staining of Cellular Landmarks](https://www.nature.com/articles/s42256-025-01046-2)
+# - [Liu, Z. and Hirata-Miyasaki, E. et al. (2024) Robust Virtual Staining of Cellular Landmarks](https://www.biorxiv.org/content/10.1101/2024.05.31.596901v2.full.pdf)
 # - [Guo et al. (2020) Revealing architectural order with quantitative label-free imaging and deep learning. eLife](https://elifesciences.org/articles/55502)
+
+# %% [markdown] tags=[]
+# <div class="alert alert-success">
+# The exercise is organized in 3 parts:
+
+# <ul>
+# <li><b>Part 1</b> - Train a virtual staining model using iohub (I/O library), VisCy dataloaders, and tensorboard</li>
+# <li><b>Part 2</b> - Evaluate the model to translate phase into fluorescence.</li>
+# <li><b>Part 3</b> - Visualize the image transforms learned by the model and explore the model's regime of validity.</li>
+# </ul>
+
+# </div>
+
+# %% [markdown] tags=[]
+# <div class="alert alert-danger">
+# Set your python kernel to <span style="color:black;">06_image_translation</span>
+# </div>
+
+# %% [markdown] tags=[]
+# ## PyTorch Lightning in one minute
+#
+# If you've used plain PyTorch you already know the pattern: write a model, write a
+# `for batch in dataloader` loop, move tensors to `cuda`, call `loss.backward()`, step
+# the optimizer, remember to `zero_grad()`, log every N steps, save a checkpoint, and
+# repeat for validation. That boilerplate is the same in every project — so
+# [PyTorch Lightning](https://lightning.ai) factors it out into **three objects** and
+# owns the training loop for you.
+#
+# | Lightning object | What it holds | In this exercise |
+# | --- | --- | --- |
+# | `LightningDataModule` | How to load, split, augment, and batch your data (`train/val/test/predict_dataloader`) | `HCSDataModule` — reads OME-Zarr and yields `{"source": ..., "target": ...}` dicts |
+# | `LightningModule` | The network, the loss, and what happens in `training_step` / `validation_step` (one batch at a time) | `VSUNet` — wraps the UNeXt2 architecture and the virtual-staining loss |
+# | `Trainer` | The loop: device placement, mixed precision, logging, checkpointing, multi-GPU | `VisCyTrainer` — a thin subclass with VisCy-friendly defaults |
+#
+# You don't write a `for` loop. You call **`trainer.fit(model, datamodule)`** and
+# Lightning drives everything. The trainer handles:
+#
+# - moving batches to the right device (`accelerator="gpu"`, `devices=[0]`)
+# - mixed-precision training (`precision="16-mixed"`) so you use less GPU memory
+# - when to log metrics / images (`log_every_n_steps`) and where (`logger=TensorBoardLogger(...)`)
+# - saving checkpoints automatically under the logger's directory
+# - running a sanity check on a single batch before real training (`fast_dev_run=True`)
+#
+# VisCy builds on top of Lightning and provides the `HCSDataModule` and `VSUNet`
+# classes so you don't have to subclass `LightningDataModule` / `LightningModule`
+# yourself — you configure them via constructor arguments and let Lightning run.
+# When you see `trainer.fit(...)` below, that single call replaces a ~50-line hand-
+# written training loop.
 
 # %% [markdown]
 # # Part 1: Log training data to tensorboard, start training a model.
@@ -87,7 +118,7 @@
 import os
 from glob import glob
 from pathlib import Path
-from typing import NamedTuple, Tuple
+from typing import Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -100,24 +131,28 @@ from iohub import open_ome_zarr
 from iohub.reader import print_info
 from lightning.pytorch import seed_everything
 from lightning.pytorch.loggers import TensorBoardLogger
-from monai.networks.layers import GaussianFilter
+
+# microSSIM: SSIM variant designed for fluorescence microscopy.
+from microssim import micro_structural_similarity
 from natsort import natsorted
 from numpy.typing import ArrayLike
-from skimage import metrics
 
 # pytorch lightning wrapper for Tensorboard.
 from skimage.color import label2rgb
-from skimage.exposure import rescale_intensity
-from sklearn.decomposition import PCA
 from torch.utils.tensorboard import SummaryWriter  # for logging to tensorboard
 from torchmetrics.functional import accuracy, jaccard_index
 from torchmetrics.functional.segmentation import dice_score
 from tqdm import tqdm
-from viscy.data.hcs import HCSDataModule
-from viscy.trainer import VisCyTrainer
+
+# Trainer class and UNet from the cytoland package.
+from cytoland.engine import VSUNet
+
+# HCSDataModule makes it easy to load data during training.
+from viscy_data._utils import BatchedCenterSpatialCropd
+from viscy_data.hcs import HCSDataModule
 
 # training augmentations
-from viscy.transforms import (
+from viscy_transforms import (
     NormalizeSampled,
     RandAdjustContrastd,
     RandAffined,
@@ -126,37 +161,33 @@ from viscy.transforms import (
     RandScaleIntensityd,
     RandWeightedCropd,
 )
-
-# Trainer class and UNet.
-from viscy.translation.engine import MixedLoss, VSUNet
-from viscy.translation.evaluation_metrics import mean_average_precision
+from viscy_utils.evaluation.metrics import mean_average_precision
+from viscy_utils.losses import MixedLoss
+from viscy_utils.trainer import VisCyTrainer
 
 # %%
 # seed random number generators for reproducibility.
 seed_everything(42, workers=True)
 
-# Paths to data and log directory
-top_dir = Path(
-    "/mnt/efs/aimbl_2025/data"
-) # If this fails, make sure this to point to the download directory
+# Paths to data and log directory.
+# DATA_ROOT (set by setup_student.sh / setup_TA.sh) points directly at the
+# folder containing training/, test/, pretrained_models/. When unset, fall
+# back to the default ~/data/06_image_translation layout.
+top_dir = Path(os.environ.get("DATA_ROOT", "~/data/06_image_translation")).expanduser()
 
 # Path to the training data
-data_path = (
-    top_dir / "04_image_translation/training/a549_hoechst_cellmask_train_val.zarr"
-)
+data_path = top_dir / "training/a549_hoechst_cellmask_train_val.zarr"
 
 # Path where we will save our training logs
 training_top_dir = Path(f"{os.getcwd()}/data/")
 # Create top_training_dir directory if needed, and launch tensorboard
 training_top_dir.mkdir(parents=True, exist_ok=True)
-log_dir = training_top_dir / "04_image_translation/logs/"
+log_dir = training_top_dir / "06_image_translation/logs/"
 # Create log directory if needed, and launch tensorboard
 log_dir.mkdir(parents=True, exist_ok=True)
 
 if not data_path.exists():
-    raise FileNotFoundError(
-        f"Data not found at {data_path}. Please check the top_dir and data_path variables."
-    )
+    raise FileNotFoundError(f"Data not found at {data_path}. Please check the top_dir and data_path variables.")
 
 # %% [markdown] tags=[]
 # The next cell starts tensorboard.
@@ -209,31 +240,30 @@ tensorboard_process = launch_tensorboard(log_dir)
 
 # %% [markdown] tags=[]
 # ## Load OME-Zarr Dataset
-
-# There should be 34 FOVs in the dataset.
 #
-# Each FOV consists of 3 channels of 2048x2048 images,
-# saved in the [High-Content Screening (HCS) layout](https://ngff.openmicroscopy.org/latest/#hcs-layout)
-# specified by the Open Microscopy Environment Next Generation File Format
-# (OME-NGFF).
+# **OME-Zarr** is a chunked, cloud-friendly microscopy format; **HCS layout**
+# nests the zarr store like a physical plate — `row/col/field/level/T/C/Z/Y/X` —
+# so each FOV is addressable by `dataset[f"{row}/{col}/{field}/{level}"]` and
+# returns an `(T, C, Z, Y, X)` array.
 #
-# The 3 channels correspond to the QPI, nuclei, and cell membrane. The nuclei were stained with DAPI and the cell membrane with Cellmask.
-#
-# - The layout on the disk is: `row/col/field/pyramid_level/timepoint/channel/z/y/x.`
-# - These datasets only have 1 level in the pyramid (highest resolution) which is '0'.
+# This dataset has 34 FOVs of 2048×2048 images across 3 channels (QPI, nuclei
+# stained with DAPI, membrane stained with Cellmask), a single pyramid level
+# `0`, and a single time point.
 
 # %% [markdown] tags=[]
 # <div class="alert alert-warning">
-# <b>For Jupyter Notebook users:</b> Run the cell below to inspect the dataset structure.
-# <br><br>
-# <b>For terminal/CLI users:</b> You can inspect the tree structure using your terminal:
+# You can inspect the tree structure by using your terminal:
 # <code> iohub info -v "path-to-ome-zarr" </code>
-# <br><br>
-# More info on the CLI: <code>iohub info --help</code>
+
+# <br>
+# More info on the CLI:
+# <code>iohub info --help </code> to see the help menu.
 # </div>
 # %%
 # This is the python function called by `iohub info` CLI command
 print_info(data_path, verbose=True)
+
+# Open and inspect the dataset.
 dataset = open_ome_zarr(data_path)
 
 # %% [markdown] tags=[]
@@ -250,37 +280,45 @@ row = 0
 col = 0
 field = 9  # TODO: Change this to explore data.
 
-# NOTE: this dataset only has one level
-pyaramid_level = 0
+pyramid_level = 0
 
 # `channel_names` is the metadata that is stored with data according to the OME-NGFF spec.
 n_channels = len(dataset.channel_names)
 
-image = dataset[f"{row}/{col}/{field}/{pyaramid_level}"].numpy()
-print(f"data shape: {image.shape}, FOV: {field}, pyramid level: {pyaramid_level}")
+image = dataset[f"{row}/{col}/{field}/{pyramid_level}"].numpy()
+print(f"data shape: {image.shape}, FOV: {field}, pyramid level: {pyramid_level}")
 
 figure, axes = plt.subplots(1, n_channels, figsize=(9, 3))
 
 for i in range(n_channels):
-    for i in range(n_channels):
-        channel_image = image[0, i, 0]
-        # Adjust contrast to 0.5th and 99.5th percentile of pixel values.
-        p_low, p_high = np.percentile(channel_image, (0.5, 99.5))
-        channel_image = np.clip(channel_image, p_low, p_high)
-        axes[i].imshow(channel_image, cmap="gray")
-        axes[i].axis("off")
-        axes[i].set_title(dataset.channel_names[i])
+    channel_image = image[0, i, 0]
+    # Adjust contrast to 0.5th and 99.5th percentile of pixel values.
+    p_low, p_high = np.percentile(channel_image, (0.5, 99.5))
+    channel_image = np.clip(channel_image, p_low, p_high)
+    axes[i].imshow(channel_image, cmap="gray")
+    axes[i].axis("off")
+    axes[i].set_title(dataset.channel_names[i])
 plt.tight_layout()
 
 # %% [markdown] tags=[]
 # ## Explore the effects of augmentation on batch.
-
-# VisCy builds on top of PyTorch Lightning. PyTorch Lightning is a thin wrapper around PyTorch that allows rapid experimentation. It provides a [DataModule](https://lightning.ai/docs/pytorch/stable/data/datamodule.html) to handle loading and processing of data during training. VisCy provides a child class, `HCSDataModule` to make it intuitve to access data stored in the HCS layout.
-
-# The dataloader in `HCSDataModule` returns a batch of samples. A `batch` is a list of dictionaries. The length of the list is equal to the batch size. Each dictionary consists of following key-value pairs.
-# - `source`: the input image, a tensor of size `(1, 1, Y, X)`
-# - `target`: the target image, a tensor of size `(2, 1, Y, X)`
-# - `index` : the tuple of (location of field in HCS layout, time, and z-slice) of the sample.
+#
+# Time to meet the first of the three Lightning objects from the primer above: the
+# **DataModule**. `HCSDataModule` is VisCy's `LightningDataModule` — it knows how
+# to read an OME-Zarr store, split FOVs into train/val, apply normalization and
+# augmentations, and hand the Trainer a PyTorch `DataLoader`. You configure it
+# once; Lightning calls the right method (`train_dataloader()`,
+# `val_dataloader()`, etc.) at the right time.
+#
+# Every sample `HCSDataModule` yields is a Python `dict` (not a tuple) with:
+#
+# - `source`: the input image, a tensor of shape `(1, 1, Y, X)` → `(C, Z, Y, X)`
+# - `target`: the target image, a tensor of shape `(2, 1, Y, X)` → `(C, Z, Y, X)`
+# - `index` : the tuple `(HCS location, time, z-slice)` identifying the sample
+#
+# A `batch` is a dict of the same keys with an extra leading batch dimension, e.g.
+# `batch["source"].shape == (B, 1, 1, Y, X)`. The `training_step` method inside
+# `VSUNet` receives this dict directly — no unpacking required.
 
 # %% [markdown] tags=[]
 # <div class="alert alert-info">
@@ -312,12 +350,8 @@ def log_batch_tensorboard(batch, batchno, writer, card_name):
         None
     """
     batch_phase = batch["source"][:, :, 0, :, :]  # batch_size x z_size x Y x X tensor.
-    batch_membrane = batch["target"][:, 1, 0, :, :].unsqueeze(
-        1
-    )  # batch_size x 1 x Y x X tensor.
-    batch_nuclei = batch["target"][:, 0, 0, :, :].unsqueeze(
-        1
-    )  # batch_size x 1 x Y x X tensor.
+    batch_membrane = batch["target"][:, 1, 0, :, :].unsqueeze(1)  # batch_size x 1 x Y x X tensor.
+    batch_nuclei = batch["target"][:, 0, 0, :, :].unsqueeze(1)  # batch_size x 1 x Y x X tensor.
 
     p1, p99 = np.percentile(batch_membrane, (0.1, 99.9))
     batch_membrane = np.clip((batch_membrane - p1) / (p99 - p1), 0, 1)
@@ -353,12 +387,8 @@ def log_batch_jupyter(batch):
     """
     batch_phase = batch["source"][:, :, 0, :, :]  # batch_size x z_size x Y x X tensor.
     batch_size = batch_phase.shape[0]
-    batch_membrane = batch["target"][:, 1, 0, :, :].unsqueeze(
-        1
-    )  # batch_size x 1 x Y x X tensor.
-    batch_nuclei = batch["target"][:, 0, 0, :, :].unsqueeze(
-        1
-    )  # batch_size x 1 x Y x X tensor.
+    batch_membrane = batch["target"][:, 1, 0, :, :].unsqueeze(1)  # batch_size x 1 x Y x X tensor.
+    batch_nuclei = batch["target"][:, 0, 0, :, :].unsqueeze(1)  # batch_size x 1 x Y x X tensor.
 
     p1, p99 = np.percentile(batch_membrane, (0.1, 99.9))
     batch_membrane = np.clip((batch_membrane - p1) / (p99 - p1), 0, 1)
@@ -371,9 +401,7 @@ def log_batch_jupyter(batch):
 
     n_channels = batch["target"].shape[1] + batch["source"].shape[1]
     plt.figure()
-    fig, axes = plt.subplots(
-        batch_size, n_channels, figsize=(n_channels * 2, batch_size * 2)
-    )
+    fig, axes = plt.subplots(batch_size, n_channels, figsize=(n_channels * 2, batch_size * 2))
     [N, C, H, W] = batch_phase.shape
     for sample_id in range(batch_size):
         axes[sample_id, 0].imshow(batch_phase[sample_id, 0])
@@ -403,6 +431,9 @@ BATCH_SIZE = 4
 source_channel = ["TODO"]
 target_channel = ["TODO", "TODO"]
 
+# #######################
+# ##### TODO ########
+# #######################
 data_module = HCSDataModule(
     data_path,
     z_window_size=1,
@@ -424,7 +455,7 @@ data_module = HCSDataModule(
 # Evaluate the data module
 print(
     f"Samples in training set: {len(data_module.train_dataset)}, "
-    f"samples in validation set: {len(data_module.val_dataset)}"
+    f"samples in validation set:{len(data_module.val_dataset)}"
 )
 train_dataloader = data_module.train_dataloader()
 # Instantiate the tensorboard SummaryWriter, logs the first batch and then iterates through all the batches and logs them to tensorboard.
@@ -465,7 +496,7 @@ data_module.setup("fit")
 # Evaluate the data module
 print(
     f"Samples in training set: {len(data_module.train_dataset)}, "
-    f"samples in validation set: {len(data_module.val_dataset)}"
+    f"samples in validation set:{len(data_module.val_dataset)}"
 )
 train_dataloader = data_module.train_dataloader()
 # Instantiate the tensorboard SummaryWriter, logs the first batch and then iterates through all the batches and logs them to tensorboard.
@@ -492,27 +523,47 @@ log_batch_jupyter(batch)
 
 # %% [markdown] tags=[]
 # <div class="alert alert-warning">
-# <h3> Question</h3>
+# <h3> Question for Task 1.3 </h3>
 # 1. How do they make the model more robust to imaging parameters or conditions
 # without having to acquire data for every possible condition? <br>
 # </div>
+# %% [markdown] tags=[]
+# Each augmentation simulates a real-world source of microscope-to-microscope
+# variation so the model doesn't overfit to the training conditions:
+#
+# | Transform | Simulates |
+# | --- | --- |
+# | `RandWeightedCropd` | random crops biased toward signal-dense regions (foreground oversampling) |
+# | `RandAffined` | stage rotation, scale drift, slight shear between acquisitions |
+# | `RandAdjustContrastd` | illumination / exposure differences |
+# | `RandScaleIntensityd` | gain / brightness differences between cameras |
+# | `RandGaussianNoised` | shot and read noise at different detector settings |
+# | `RandGaussianSmoothd` | small focus drift / defocus |
 # %% [markdown] tags=[]
 # <div class="alert alert-info">
 #
 # ### Task 1.3
 # Add the following augmentations:
 # - Add augmentations to rotate about $\pi$ around z-axis, 30% scale in (y,x),
-# shearing of 1% in (y,x), and no padding with zeros with a probablity of 80%.
+# shearing of 1% in (y,x), and no padding with zeros with a probability of 80%.
 # - Add a Gaussian noise with a mean of 0.0 and standard deviation of 0.3 with a probability of 50%.
 #
-# HINT: `RandAffined()` and `RandGaussianNoised()` are from
-# `viscy.transforms` [here](https://github.com/mehta-lab/VisCy/blob/main/viscy/transforms.py). You can look at the docs by running `RandAffined?`.<br><br>
-# *Note these are MONAI transforms that have been redefined for VisCy.*
-# [Compare your choice of augmentations by dowloading the pretrained models and config files](https://github.com/mehta-lab/VisCy/releases/download/v0.1.0/VisCy-0.1.0-VS-models.zip).
+# HINT: `RandAffined()` and `RandGaussianNoised()` are MONAI dictionary
+# transforms re-exported from `viscy_transforms`. See the MONAI docs for
+# arguments and probability semantics:
+# [RandAffined](https://docs.monai.io/en/stable/transforms.html#randaffined),
+# [RandGaussianNoised](https://docs.monai.io/en/stable/transforms.html#randgaussiannoised).
+# You can also inspect any transform in a cell with `RandAffined?`.<br><br>
+# [Compare your choice of augmentations against the pretrained models and config files](https://github.com/mehta-lab/VisCy/releases/download/v0.1.0/VisCy-0.1.0-VS-models.zip).
 # </div>
 # %% tags=["task"]
 # Here we turn on data augmentation and rerun setup
+# #######################
+# ##### TODO ########
+# #######################
 # HINT: Run dataset.channel_names
+source_channel = ["TODO"]
+target_channel = ["TODO", "TODO"]
 
 augmentations = [
     RandWeightedCropd(
@@ -638,7 +689,7 @@ writer.close()
 
 # %% [markdown] tags=[]
 # <div class="alert alert-warning">
-# <h3> Questions </h3>
+# <h3> Question for Task 1.3 </h3>
 # 1. Look at your tensorboard. Can you tell the agumentations were applied to the sample batch? Compare the batch with and without augmentations. <br>
 # 2. Are these augmentations good enough? What else would you add?
 # </div>
@@ -652,6 +703,43 @@ log_batch_jupyter(augmented_batch)
 # %% [markdown] tags=[]
 # ## Train a 2D U-Net model to predict nuclei and membrane from phase.
 # ### Constructing a 2D UNeXt2 using VisCy
+#
+# Now we meet the second Lightning object: the **`LightningModule`**. `VSUNet` is
+# VisCy's `LightningModule` and it bundles three things that plain PyTorch keeps
+# separate:
+#
+# 1. **The network** — a UNeXt2 architecture, configured through `model_config`.
+# 2. **The loss** — passed in as `loss_function=MixedLoss(...)`.
+# 3. **The per-batch logic** — `training_step` and `validation_step` methods that
+#    take one `{"source", "target"}` batch, run the forward pass, compute the
+#    loss, and return it. You don't see these methods here because they're
+#    defined once inside `VSUNet`; Lightning calls them for you.
+#
+# Other constructor arguments you'll recognize from plain PyTorch training:
+# `lr` is the learning rate, `schedule="WarmupCosine"` picks the LR schedule,
+# and `freeze_encoder=False` lets gradients flow through the whole network.
+# `log_batches_per_epoch` is a VisCy extra — it tells the module how many image
+# samples to push to TensorBoard each epoch.
+# %% [markdown]
+# **Architecture config** — UNeXt2 is a U-Net with ConvNeXt-style blocks:
+#
+# - `encoder_blocks=[3, 3, 9, 3]` and `dims=[96, 192, 384, 768]` — 4 downsampling
+#   stages with that many blocks and feature channels per stage (last stage is
+#   the bottleneck). More blocks / dims = more capacity and more compute.
+# - `decoder_conv_blocks=2` — conv blocks after each upsampling step.
+# - `stem_kernel_size=(1, 2, 2)` and `in_stack_depth=1` — this is a 2D model,
+#   so we use 1 z-slice and a stem that doesn't convolve across z.
+#
+# **Loss** — `MixedLoss(l1_alpha=0.5, ms_dssim_alpha=0.5)` combines per-pixel
+# L1 (penalizes intensity error) with multi-scale SSIM (penalizes structural
+# error — edges, texture, shape). L1 alone produces blurry outputs; MS-SSIM
+# alone ignores absolute intensity. The 0.5/0.5 mix balances both.
+#
+# **Schedule** — `schedule="WarmupCosine"`, `lr=6e-4`: the learning rate ramps
+# up from 0 over the first few epochs (warmup), then follows a cosine decay
+# toward 0. Warmup avoids early gradient blow-up with AdamW; cosine decay is a
+# strong default for vision transformer / ConvNeXt-style encoders.
+
 # %% [markdown]
 # <div class="alert alert-info">
 #
@@ -679,7 +767,7 @@ YX_PATCH_SIZE = (256, 256)
 # #######################
 # Dictionary that specifies key parameters of the model.
 phase2fluor_config = dict(
-    in_channels=...,  # TODO how many input channels are we feeding Hint: int,
+    in_channels=...,  # TODO how many input channels are we feeding Hint: int?,
     out_channels=...,  # TODO how many output channels are we solving for? Hint: int,
     encoder_blocks=[3, 3, 9, 3],
     dims=[96, 192, 384, 768],
@@ -710,6 +798,9 @@ source_channel = ["TODO"]
 target_channel = ["TODO", "TODO"]
 
 # Setup the data module.
+# NOTE: RandWeightedCropd produces 384x384 crops but yx_patch_size=(256,256),
+# so the modular HCSDataModule needs a GPU-side BatchedCenterSpatialCropd to
+# bring patches back to yx_patch_size before reaching the model.
 phase2fluor_2D_data = HCSDataModule(
     data_path,
     source_channel=source_channel,
@@ -721,12 +812,22 @@ phase2fluor_2D_data = HCSDataModule(
     yx_patch_size=YX_PATCH_SIZE,
     augmentations=augmentations,
     normalizations=normalizations,
+    gpu_augmentations=[
+        BatchedCenterSpatialCropd(
+            keys=["source", "target"],
+            roi_size=(1, YX_PATCH_SIZE[0], YX_PATCH_SIZE[1]),
+        )
+    ],
+    val_gpu_augmentations=[
+        BatchedCenterSpatialCropd(
+            keys=["source", "target"],
+            roi_size=(1, YX_PATCH_SIZE[0], YX_PATCH_SIZE[1]),
+        )
+    ],
 )
 phase2fluor_2D_data.setup("fit")
 # fast_dev_run runs a single batch of data through the model to check for errors.
-trainer = VisCyTrainer(
-    accelerator="gpu", devices=[GPU_ID], precision="16-mixed", fast_dev_run=True
-)
+trainer = VisCyTrainer(accelerator="gpu", devices=[GPU_ID], precision="16-mixed", fast_dev_run=True)
 
 # trainer class takes the model and the data module as inputs.
 trainer.fit(phase2fluor_model, datamodule=phase2fluor_2D_data)
@@ -773,6 +874,9 @@ phase2fluor_model = VSUNet(
 source_channel = ["Phase3D"]
 target_channel = ["Nucl", "Mem"]
 # Setup the data module.
+# NOTE: RandWeightedCropd produces 384x384 crops but yx_patch_size=(256,256),
+# so the modular HCSDataModule needs a GPU-side BatchedCenterSpatialCropd to
+# bring patches back to yx_patch_size before reaching the model.
 phase2fluor_2D_data = HCSDataModule(
     data_path,
     source_channel=source_channel,
@@ -784,17 +888,46 @@ phase2fluor_2D_data = HCSDataModule(
     yx_patch_size=YX_PATCH_SIZE,
     augmentations=augmentations,
     normalizations=normalizations,
+    gpu_augmentations=[
+        BatchedCenterSpatialCropd(
+            keys=["source", "target"],
+            roi_size=(1, YX_PATCH_SIZE[0], YX_PATCH_SIZE[1]),
+        )
+    ],
+    val_gpu_augmentations=[
+        BatchedCenterSpatialCropd(
+            keys=["source", "target"],
+            roi_size=(1, YX_PATCH_SIZE[0], YX_PATCH_SIZE[1]),
+        )
+    ],
 )
 # #######################
 # ##### SOLUTION ########
 # #######################
 phase2fluor_2D_data.setup("fit")
-# fast_dev_run runs a single batch of data through the model to check for errors.
-trainer = VisCyTrainer(
-    accelerator="gpu", devices=[GPU_ID], precision="16-mixed", fast_dev_run=True
-)
 
-# trainer class takes the model and the data module as inputs.
+# --- The third Lightning object: the Trainer ---
+#
+# This is the object that replaces the hand-written training loop. Each kwarg
+# controls one piece of the boilerplate Lightning is handling for you:
+#
+# - accelerator="gpu", devices=[GPU_ID]
+#       Pick the device. No more ".to(device)" sprinkled through your code —
+#       Lightning moves model + every batch for you.
+# - precision="16-mixed"
+#       Automatic mixed-precision training (fp16 activations, fp32 master
+#       weights). Cuts GPU memory roughly in half and speeds up matmuls on
+#       modern GPUs — no autocast() context managers needed.
+# - fast_dev_run=True
+#       Sanity check: run ONE training batch + ONE validation batch and exit.
+#       Use this on every new pipeline to catch shape bugs, NaN losses, or
+#       bad paths *before* you commit to a multi-hour training job.
+#
+# trainer.fit(model, datamodule=...) then drives the whole thing: it calls
+# datamodule.setup(), pulls batches from train_dataloader(), invokes
+# model.training_step(batch), runs loss.backward() + optimizer.step() +
+# zero_grad(), runs validation, logs to TensorBoard, and saves checkpoints.
+trainer = VisCyTrainer(accelerator="gpu", devices=[GPU_ID], precision="16-mixed", fast_dev_run=True)
 trainer.fit(phase2fluor_model, datamodule=phase2fluor_2D_data)
 
 # %% [markdown] tags=[]
@@ -821,7 +954,7 @@ trainer.fit(phase2fluor_model, datamodule=phase2fluor_2D_data)
 # visualize graph of phase2fluor model as image.
 model_graph_phase2fluor = torchview.draw_graph(
     phase2fluor_model,
-    phase2fluor_2D_data.train_dataset[0]["source"][0].unsqueeze(dim=0),
+    phase2fluor_2D_data.train_dataset[0]["source"].unsqueeze(dim=0),
     roll=True,
     depth=3,  # adjust depth to zoom in.
     device="cpu",
@@ -843,6 +976,35 @@ model_graph_phase2fluor.visual_graph
 # <h3> Task 1.6 </h3>
 # Start training by running the following cell. Check the new logs on the tensorboard.
 # </div>
+
+# %% [markdown]
+# <div class="alert alert-warning">
+# <b>Before re-running training:</b> if a previous training cell is still
+# holding the GPU (you'll see <code>CUDA out of memory</code>), restart the
+# Jupyter kernel (<b>Kernel → Restart</b> in Jupyter, or <b>Restart</b> in
+# VSCode) to release the previous model and optimizer state. The dataset and
+# augmentations will rebuild quickly; only the trained weights need to be
+# re-loaded via <code>load_from_checkpoint</code> if you want to resume.
+# </div>
+
+# %% [markdown]
+# Now that `fast_dev_run` confirmed the pipeline works end-to-end, we switch
+# to a "real" Trainer configured for an actual multi-epoch run. New Lightning
+# knobs appearing here:
+#
+# - `max_epochs=n_epochs` — run this many passes over the training set, then stop.
+# - `log_every_n_steps=steps_per_epoch // 2` — how often Lightning flushes
+#   scalars (loss, learning rate) to the logger. Setting it to half an epoch
+#   gives us two data points per epoch without spamming TensorBoard.
+# - `logger=TensorBoardLogger(save_dir=log_dir, name="phase2fluor", log_graph=True)`
+#   — Lightning writes TensorBoard event files *and* model checkpoints under
+#   `{save_dir}/{name}/version_N/`. You don't call `torch.save` yourself; the
+#   trainer persists checkpoints automatically, and `log_graph=True` adds the
+#   network architecture to the Graphs tab.
+#
+# Calling `trainer.fit` again below runs the full training loop — forward,
+# loss, backward, optimizer step, validation every epoch, checkpoint at the
+# end — across `max_epochs` epochs.
 
 # %%
 # Check if GPU is available
@@ -891,16 +1053,20 @@ phase2fluor_model.to(device)
 # </div>
 # %% [markdown] tags=[]
 # # Part 2: Assess your trained model
-
-# Now we will look at some metrics of performance of previous model.
-# We typically evaluate the model performance on a held out test data.
-# We will use the following metrics to evaluate the accuracy of regression of the model:
-
-# - [Person Correlation](https://en.wikipedia.org/wiki/Pearson_correlation_coefficient).
-# - [Structural similarity](https://en.wikipedia.org/wiki/Structural_similarity) (SSIM).
-
-# You should also look at the validation samples on tensorboard
-# (hint: the experimental data in nuclei channel is imperfect.)
+#
+# We evaluate on a held-out test set using two complementary families of metrics:
+#
+# - **Regression / pixel-level** (Pearson, microSSIM): are predicted
+#   intensities close to ground truth, per pixel? Cheap, but can hide
+#   topological errors — a model that merges two nuclei may still score well
+#   pixel-wise.
+# - **Segmentation / instance-level** (Jaccard/IoU, Dice, mAP over IoU
+#   thresholds): run Cellpose on both predicted and measured fluorescence,
+#   then compare instance masks. This is what ultimately matters for
+#   downstream analysis (counting cells, tracking, phenotyping).
+#
+# Also inspect the validation samples on TensorBoard — the experimental
+# nuclei channel is noisy, so "ground truth" is itself imperfect.
 
 # %% [markdown]
 # <div class="alert alert-info">
@@ -915,54 +1081,39 @@ phase2fluor_model.to(device)
 # %% [markdown] tags=[]
 # ```
 # #######################
-# ##### Todo ############
+# ##### Solution ########
 # #######################
-#
 # ```
 #
-# - Pearson Correlation:
+# - **Pearson Correlation**: linear correlation between predicted and target
+#   intensities across all pixels, in `[-1, 1]`. `1` means the prediction is a
+#   perfect affine rescaling of the target; invariant to mean / contrast
+#   offsets. Good at flagging "the pattern is right" but blind to structural
+#   errors that preserve correlation (e.g. a uniformly blurred prediction).
 #
-# - Structural similarity:
+# - **microSSIM**: a microscopy-aware variant of
+#   [Structural Similarity (SSIM)](https://en.wikipedia.org/wiki/Structural_similarity).
+#   Classic SSIM patch-wise compares local mean, variance, and covariance and
+#   captures structure Pearson misses (blurring, contrast loss) — but it
+#   assumes the natural-image dynamic range. Fluorescence microscopy images
+#   are sparse, dim, and noisy: with the default SSIM parameters the scores
+#   collapse into a narrow band that barely separates good and bad
+#   predictions. [microSSIM](https://github.com/juglab/MicroSSIM)
+#   ([Ashesh et al., 2024](https://arxiv.org/abs/2408.08747)) fixes this by
+#   subtracting the image background and fitting a per-image rescaling factor
+#   before computing SSIM, so the metric becomes sensitive over the range of
+#   intensities microscopy predictions actually live in. We use it as a
+#   drop-in replacement for `skimage.metrics.structural_similarity`.
 
 # %% [markdown] tags=[]
 # ### Let's compute metrics directly and plot below.
-
 # %% [markdown] tags=[]
 # <div class="alert alert-danger">
-#
-# If at any point during the exercise you need to reload your trained model, simply run the following code:
-# </div>
-#
-# ```python
-# # Load the latest checkpoint
-# phase2fluor_model_ckpt = natsorted(glob(
-#    str(top_dir / "04_image_translation/logs/phase2fluor/version*/checkpoints/*.ckpt")
-# ))[-1]
-# # Load the config
-# phase2fluor_config = dict(
-#     in_channels=1,
-#     out_channels=2,
-#     encoder_blocks=[3, 3, 9, 3],
-#     dims=[96, 192, 384, 768],
-#     decoder_conv_blocks=2,
-#     stem_kernel_size=(1, 2, 2),
-#     in_stack_depth=1,
-#     pretraining=False,
-# )
-# # Load the model
-# phase2fluor_model = VSUNet.load_from_checkpoint(
-#     phase2fluor_model_ckpt,
-#     architecture="UNeXt2_2D",
-#     model_config=phase2fluor_config,
-#     accelerator='gpu'
-# )
-# ```
-
 # If you weren't able to train or training didn't complete please run the following lines to load the latest checkpoint <br>
 #
 # ```python
 # phase2fluor_model_ckpt = natsorted(glob(
-#    str(top_dir / "04_image_translation/logs/phase2fluor/version*/checkpoints/*.ckpt")
+#    str(top_dir / "06_image_translation/logs/phase2fluor/version*/checkpoints/*.ckpt")
 # ))[-1]
 # ```
 # <br>
@@ -970,7 +1121,9 @@ phase2fluor_model.to(device)
 # Run the following:
 #
 # ```python
-# phase2fluor_model_ckpt = "/mnt/efs/aimbl_2025/data/04_image_translation/pretrained_models/AIMBL_Demo/backup.ckpt"
+# phase2fluor_model_ckpt = natsorted(glob(
+#  str(top_dir/"06_image_translation/backup/phase2fluor/version_0/checkpoints/*.ckpt")
+# ))[-1]
 # ```
 
 # ```python
@@ -995,7 +1148,7 @@ phase2fluor_model.to(device)
 # </div>
 # %%
 # Setup the test data module.
-test_data_path = top_dir / "04_image_translation/test/a549_hoechst_cellmask_test.zarr"
+test_data_path = top_dir / "test/a549_hoechst_cellmask_test.zarr"
 source_channel = ["Phase3D"]
 target_channel = ["Nucl", "Mem"]
 
@@ -1009,9 +1162,7 @@ test_data = HCSDataModule(
 )
 test_data.setup("test")
 
-test_metrics = pd.DataFrame(
-    columns=["pearson_nuc", "SSIM_nuc", "pearson_mem", "SSIM_mem"]
-)
+test_metrics = pd.DataFrame(columns=["pearson_nuc", "microSSIM_nuc", "pearson_mem", "microSSIM_mem"])
 
 
 # %%
@@ -1022,50 +1173,37 @@ def normalize_fov(input: ArrayLike):
     std = np.std(input)
     return (input - mean) / std
 
-for i, sample in enumerate(
-    tqdm(test_data.test_dataloader(), desc="Computing metrics per sample")
-):
+
+for i, sample in enumerate(tqdm(test_data.test_dataloader(), desc="Computing metrics per sample")):
     phase_image = sample["source"].to(phase2fluor_model.device)
-    with torch.inference_mode():  
+    with torch.inference_mode():  # turn off gradient computation.
         predicted_image = phase2fluor_model(phase_image)
-    
-    # Squeezing batch dimension.
-    target_image = (
-        sample["target"].cpu().numpy().squeeze(0)
-    )  
+
+    target_image = sample["target"].cpu().numpy().squeeze(0)  # Squeezing batch dimension.
     predicted_image = predicted_image.cpu().numpy().squeeze(0)
     phase_image = phase_image.cpu().numpy().squeeze(0)
-    
     target_mem = normalize_fov(target_image[1, 0, :, :])
     target_nuc = normalize_fov(target_image[0, 0, :, :])
-    predicted_nuc = normalize_fov(predicted_image[0,0, :, :])
-    predicted_mem = normalize_fov(predicted_image[1,0, :, :])
-    
-    # Compute pearson correlation.
+    # slicing channel dimension, squeezing z-dimension.
+    predicted_mem = normalize_fov(predicted_image[1, :, :, :].squeeze(0))
+    predicted_nuc = normalize_fov(predicted_image[0, :, :, :].squeeze(0))
+
+    # Compute microSSIM and pearson correlation.
+    ssim_nuc = micro_structural_similarity(target_nuc, predicted_nuc)
+    ssim_mem = micro_structural_similarity(target_mem, predicted_mem)
     pearson_nuc = np.corrcoef(target_nuc.flatten(), predicted_nuc.flatten())[0, 1]
     pearson_mem = np.corrcoef(target_mem.flatten(), predicted_mem.flatten())[0, 1]
 
-    # Rescale the intensity to the 0-1 range.
-    predicted_mem = rescale_intensity(predicted_mem, out_range=(0, 1))
-    predicted_nuc = rescale_intensity(predicted_nuc, out_range=(0, 1))
-    target_mem = rescale_intensity(target_mem, out_range=(0, 1))
-    target_nuc = rescale_intensity(target_nuc, out_range=(0, 1))
-
-    # Compute SSIM and pearson correlation.
-    ssim_nuc = metrics.structural_similarity(target_nuc, predicted_nuc, data_range=1)
-    ssim_mem = metrics.structural_similarity(target_mem, predicted_mem, data_range=1)
-
-
     test_metrics.loc[i] = {
         "pearson_nuc": pearson_nuc,
-        "SSIM_nuc": ssim_nuc,
+        "microSSIM_nuc": ssim_nuc,
         "pearson_mem": pearson_mem,
-        "SSIM_mem": ssim_mem,
+        "microSSIM_mem": ssim_mem,
     }
 
 # Plot the following metrics
 test_metrics.boxplot(
-    column=["pearson_nuc", "SSIM_nuc", "pearson_mem", "SSIM_mem"],
+    column=["pearson_nuc", "microSSIM_nuc", "pearson_mem", "microSSIM_mem"],
     rot=30,
 )
 
@@ -1099,12 +1237,7 @@ for i, sample in enumerate(test_data.test_dataloader()):
     axes[0].set_title(channel_titles[0])
 
     with torch.inference_mode():  # turn off gradient computation.
-        predicted_image = (
-            phase2fluor_model(phase_image.to(phase2fluor_model.device))
-            .cpu()
-            .numpy()
-            .squeeze(0)
-        )
+        predicted_image = phase2fluor_model(phase_image.to(phase2fluor_model.device)).cpu().numpy().squeeze(0)
 
     target_image = sample["target"].cpu().numpy().squeeze(0)
     phase_raw = process_image(phase_image[0, 0, 0])
@@ -1142,8 +1275,12 @@ for i, sample in enumerate(test_data.test_dataloader()):
 # Here we will compare your model with the VSCyto2D pretrained model by computing the pixel-based metrics and segmentation-based metrics.
 #
 # <ul>
-# <li>When you ran the `setup.sh` you also downloaded the models in `/04_image_translation/pretrained_models/VSCyto2D/*.ckpt`</li>
-# <li>Load the <b>VSCyto2 model</b> model checkpoint and the configuration file</li>
+# <li>The pretrained checkpoint was downloaded by <code>setup.sh</code> to
+#   <code>~/data/06_image_translation/pretrained_models/VSCyto2D/epoch=399-step=23200.ckpt</code>
+#   — if missing, download it directly from
+#   <a href="https://public.czbiohub.org/comp.micro/viscy/VS_models/VSCyto2D/VSCyto2D/epoch=399-step=23200.ckpt">public.czbiohub.org</a>.
+#   Check with <code>ls ~/data/06_image_translation/pretrained_models/VSCyto2D/</code>.</li>
+# <li>Load the <b>VSCyto2D</b> model checkpoint and the configuration file</li>
 # <li>Compute the pixel-based metrics and segmentation-based metrics between the model you trained and the pretrained model</li>
 # </ul>
 # <br>
@@ -1156,9 +1293,7 @@ for i, sample in enumerate(test_data.test_dataloader()):
 ##### TODO ######
 #################
 # Let's load the pretrained model checkpoint
-pretrained_model_ckpt = (
-    top_dir / ...
-)  ## Add the path to the "VSCyto2D/epoch=399-step=23200.ckpt"
+pretrained_model_ckpt = top_dir / ...  ## Add the path to the "VSCyto2D/epoch=399-step=23200.ckpt"
 
 # TODO: Load the phase2fluor_config just like the model you trained
 phase2fluor_config = dict()  ##
@@ -1168,7 +1303,12 @@ pretrained_phase2fluor = VSUNet.load_from_checkpoint(
     pretrained_model_ckpt,
     architecture=...,
     model_config=phase2fluor_config,
-    accelerator="gpu",
+)
+# Move the loaded model to GPU (VSUNet does not take an accelerator kwarg;
+# Lightning's trainer handles that for fit/predict, but for manual inference
+# we move the module ourselves).
+pretrained_phase2fluor = pretrained_phase2fluor.to(
+    torch.device(f"cuda:{GPU_ID}" if torch.cuda.is_available() else "cpu")
 )
 # TODO: Setup the dataloader in evaluation/predict mode
 #
@@ -1178,10 +1318,7 @@ pretrained_phase2fluor = VSUNet.load_from_checkpoint(
 # ##### SOLUTION ########
 # #######################
 
-pretrained_model_ckpt = (
-    top_dir
-    / "04_image_translation/pretrained_models/VSCyto2D/epoch=399-step=23200.ckpt"
-)
+pretrained_model_ckpt = top_dir / "pretrained_models/VSCyto2D/epoch=399-step=23200.ckpt"
 
 phase2fluor_config = dict(
     in_channels=1,
@@ -1194,28 +1331,27 @@ phase2fluor_config = dict(
     pretraining=False,
 )
 # Load the model checkpoint
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 pretrained_phase2fluor = VSUNet.load_from_checkpoint(
     pretrained_model_ckpt,
     architecture="UNeXt2_2D",
     model_config=phase2fluor_config,
-    accelerator="gpu",
+    map_location=device,
 )
+pretrained_phase2fluor = pretrained_phase2fluor.to(device)
 pretrained_phase2fluor.eval()
 
 ### Re-load your trained model
 # NOTE: assuming the latest checkpoint it your latest training and model
 phase2fluor_model_ckpt = natsorted(
-    glob(
-        str(
-            training_top_dir
-            / "04_image_translation/logs/phase2fluor/version*/checkpoints/*.ckpt"
-        )
-    )
+    glob(str(training_top_dir / "06_image_translation/logs/phase2fluor/version*/checkpoints/*.ckpt"))
 )[-1]
 
 # NOTE: if their model didn't go past epoch 5, lost their checkpoint, or didnt train anything.
 # Uncomment the next lines
-# phase2fluor_model_ckpt = "/mnt/efs/aimbl_2025/data/04_image_translation/pretrained_models/AIMBL_Demo/backup.ckpt"
+# phase2fluor_model_ckpt = natsorted(glob(
+#  str(top_dir/"06_image_translation/backup/phase2fluor/version_0/checkpoints/*.ckpt")
+# ))[-1]
 
 phase2fluor_config = dict(
     in_channels=1,
@@ -1227,17 +1363,19 @@ phase2fluor_config = dict(
     in_stack_depth=1,
     pretraining=False,
 )
-# Load the model checkpoint
+# Load the model checkpoint, then move it to GPU for manual inference.
+# (VSUNet does not accept an accelerator kwarg — Lightning's Trainer handles
+# device placement automatically for fit/predict, but here we call the model
+# directly, so we move it explicitly.)
 phase2fluor_model = VSUNet.load_from_checkpoint(
     phase2fluor_model_ckpt,
     architecture="UNeXt2_2D",
     model_config=phase2fluor_config,
-    accelerator="gpu",
-)
+).to(torch.device(f"cuda:{GPU_ID}" if torch.cuda.is_available() else "cpu"))
 phase2fluor_model.eval()
 # %% [markdown] tags=[]
 # <div class="alert alert-warning">
-# <h3> Questions </h3>
+# <h3> Question </h3>
 # 1. Can we evaluate a model's performance based on their segmentations?<br>
 # 2. Look up IoU or Jaccard index, dice coefficient, and AP metrics. LINK:https://metrics-reloaded.dkfz.de/metric-library <br>
 # We will evaluate the performance of your trained model with a pre-trained model using pixel based metrics as above and
@@ -1269,15 +1407,11 @@ phase2fluor_model.eval()
 # %%
 # Create cellpose model once for reuse
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-cellpose_model = models.CellposeModel(
-    gpu=True if device.type == "cuda" else False, device=device
-)
+cellpose_model = models.CellposeModel(gpu=True if device.type == "cuda" else False, device=device)
 
 
 # Define the function to compute the cellpose segmentation
-def cellpose_segmentation(
-    prediction: ArrayLike, target: ArrayLike
-) -> Tuple[torch.ShortTensor]:
+def cellpose_segmentation(prediction: ArrayLike, target: ArrayLike) -> Tuple[torch.ShortTensor]:
     # NOTE these are hardcoded for this notebook and A549 dataset
 
     # Convert 2D arrays to 3D format expected by cellpose v4.0.1+
@@ -1305,14 +1439,12 @@ def cellpose_segmentation(
 
 # %%
 # Setting the paths for the test data and the output segmentation
-test_data_path = top_dir / "04_image_translation/test/a549_hoechst_cellmask_test.zarr"
-output_segmentation_path = (
-    training_top_dir / "04_image_translation/pretrained_model_segmentations.zarr"
-)
+test_data_path = top_dir / "test/a549_hoechst_cellmask_test.zarr"
+output_segmentation_path = training_top_dir / "06_image_translation/pretrained_model_segmentations.zarr"
 
 # Creating the dataframes to store the pixel and segmentation metrics
 test_pixel_metrics = pd.DataFrame(
-    columns=["model", "fov", "pearson_nuc", "SSIM_nuc", "pearson_mem", "SSIM_mem"]
+    columns=["model", "fov", "pearson_nuc", "microSSIM_nuc", "pearson_mem", "microSSIM_mem"]
 )
 test_segmentation_metrics = pd.DataFrame(
     columns=[
@@ -1331,6 +1463,14 @@ test_segmentation_metrics = pd.DataFrame(
 # Opening the test dataset
 test_dataset = open_ome_zarr(test_data_path)
 
+# Creating an output store for the predictions and segmentations
+segmentation_store = open_ome_zarr(
+    output_segmentation_path,
+    channel_names=["nuc_pred", "mem_pred", "nuc_labels"],
+    mode="w",
+    layout="hcs",
+)
+
 # Looking at the test dataset
 print("Test dataset:")
 test_dataset.print_tree()
@@ -1342,6 +1482,15 @@ phase_cidx = channel_names.index("Phase3D")
 nuc_cidx = channel_names.index("Nucl")
 mem_cidx = channel_names.index("Mem")
 nuc_label_cidx = channel_names.index("nuclei_segmentation")
+
+
+# %%
+def min_max_scale(image: ArrayLike) -> ArrayLike:
+    "Normalizing the image using min-max scaling"
+    min_val = image.min()
+    max_val = image.max()
+    return (image - min_val) / (max_val - min_val)
+
 
 # %% [markdown]
 # ## Visualize segmentation comparison: Fluorescence vs Virtual Staining vs Pretrained
@@ -1362,52 +1511,42 @@ sample_membrane = sample_pos.data[0, mem_cidx : mem_cidx + 1, Z_slice]
 
 # Crop 300x300 pixels from center
 center_y, center_x = sample_nucleus.shape[2] // 2, sample_nucleus.shape[3] // 2
-crop_size = 300  #TODO: change this to see different sizes of crops
+crop_size = 300
 y_start = max(0, center_y - crop_size // 2)
 y_end = min(sample_nucleus.shape[2], center_y + crop_size // 2)
 x_start = max(0, center_x - crop_size // 2)
 x_end = min(sample_nucleus.shape[3], center_x + crop_size // 2)
 
 # Crop fluorescence data
-sample_nucleus_crop = rescale_intensity(sample_nucleus[0, 0, y_start:y_end, x_start:x_end], out_range=(0, 1))
-sample_membrane_crop = rescale_intensity(
-    sample_membrane[0, 0, y_start:y_end, x_start:x_end], out_range=(0, 1)
-)
+sample_nucleus_crop = min_max_scale(sample_nucleus[0, 0, y_start:y_end, x_start:x_end])
+sample_membrane_crop = min_max_scale(sample_membrane[0, 0, y_start:y_end, x_start:x_end])
 
 # Generate virtual stained data from phase (trained model)
-sample_phase_tensor = torch.tensor(sample_phase, dtype=torch.float32)
+sample_phase_tensor = torch.tensor(sample_phase, dtype=torch.float32).to(device)
 with torch.inference_mode():
-    predicted_image = phase2fluor_model(sample_phase_tensor.to(phase2fluor_model.device))
-predicted_nuc_crop = rescale_intensity(
-    predicted_image.cpu().numpy()[0, 0, 0, y_start:y_end, x_start:x_end], out_range=(0, 1)
-)
-predicted_mem_crop = rescale_intensity(
-    predicted_image.cpu().numpy()[0, 1, 0, y_start:y_end, x_start:x_end], out_range=(0, 1)
-)
+    predicted_image = phase2fluor_model(sample_phase_tensor)
+predicted_nuc_crop = min_max_scale(predicted_image.cpu().numpy()[0, 0, 0, y_start:y_end, x_start:x_end])
+predicted_mem_crop = min_max_scale(predicted_image.cpu().numpy()[0, 1, 0, y_start:y_end, x_start:x_end])
 
 # Generate virtual stained data from pretrained model
 with torch.inference_mode():
-    predicted_image_pretrained = pretrained_phase2fluor(sample_phase_tensor.to(pretrained_phase2fluor.device))
-    predicted_nuc_pretrained_crop = rescale_intensity(
-    predicted_image_pretrained.cpu().numpy()[0, 0, 0, y_start:y_end, x_start:x_end], out_range=(0, 1)
+    predicted_image_pretrained = pretrained_phase2fluor(sample_phase_tensor)
+predicted_nuc_pretrained_crop = min_max_scale(
+    predicted_image_pretrained.cpu().numpy()[0, 0, 0, y_start:y_end, x_start:x_end]
 )
-predicted_mem_pretrained_crop = rescale_intensity(
-    predicted_image_pretrained.cpu().numpy()[0, 1, 0, y_start:y_end, x_start:x_end], out_range=(0, 1)
+predicted_mem_pretrained_crop = min_max_scale(
+    predicted_image_pretrained.cpu().numpy()[0, 1, 0, y_start:y_end, x_start:x_end]
 )
 
 # Run segmentation on all nuclei
 fluor_nuc_seg, _ = cellpose_segmentation(sample_nucleus_crop, sample_nucleus_crop)
 virtual_nuc_seg, _ = cellpose_segmentation(predicted_nuc_crop, predicted_nuc_crop)
-pretrained_nuc_seg, _ = cellpose_segmentation(
-    predicted_nuc_pretrained_crop, predicted_nuc_pretrained_crop
-)
+pretrained_nuc_seg, _ = cellpose_segmentation(predicted_nuc_pretrained_crop, predicted_nuc_pretrained_crop)
 
 # Run segmentation on all membranes (using nucleus parameters for consistency)
 fluor_mem_seg, _ = cellpose_segmentation(sample_membrane_crop, sample_membrane_crop)
 virtual_mem_seg, _ = cellpose_segmentation(predicted_mem_crop, predicted_mem_crop)
-pretrained_mem_seg, _ = cellpose_segmentation(
-    predicted_mem_pretrained_crop, predicted_mem_pretrained_crop
-)
+pretrained_mem_seg, _ = cellpose_segmentation(predicted_mem_pretrained_crop, predicted_mem_pretrained_crop)
 
 # Convert to numpy
 fluor_nuc_seg = fluor_nuc_seg.numpy()
@@ -1463,9 +1602,7 @@ axes[2, 0].imshow(predicted_nuc_pretrained_crop, cmap="gray")
 axes[2, 0].set_title("Virtual Nucleus (Pretrained)")
 axes[2, 0].axis("off")
 
-pretrained_nuc_overlay = label2rgb(
-    pretrained_nuc_seg, predicted_nuc_pretrained_crop, bg_label=0
-)
+pretrained_nuc_overlay = label2rgb(pretrained_nuc_seg, predicted_nuc_pretrained_crop, bg_label=0)
 axes[2, 1].imshow(pretrained_nuc_overlay)
 axes[2, 1].set_title("Nucleus Segmentation")
 axes[2, 1].axis("off")
@@ -1474,9 +1611,7 @@ axes[2, 2].imshow(predicted_mem_pretrained_crop, cmap="gray")
 axes[2, 2].set_title("Virtual Membrane (Pretrained)")
 axes[2, 2].axis("off")
 
-pretrained_mem_overlay = label2rgb(
-    pretrained_mem_seg, predicted_mem_pretrained_crop, bg_label=0
-)
+pretrained_mem_overlay = label2rgb(pretrained_mem_seg, predicted_mem_pretrained_crop, bg_label=0)
 axes[2, 3].imshow(pretrained_mem_overlay)
 axes[2, 3].set_title("Membrane Segmentation")
 axes[2, 3].axis("off")
@@ -1499,18 +1634,8 @@ print(f"  Virtual (pretrained): {len(np.unique(pretrained_mem_seg)) - 1} objects
 # Now let's compute metrics across all FOVs
 
 # %%
-
-# Creating an output store for the predictions and segmentations
-segmentation_store = open_ome_zarr(
-    output_segmentation_path,
-    channel_names=["nuc_pred", "mem_pred", "nuc_labels"],
-    mode="w",
-    layout="hcs",
-)
-
 # Iterating through the test dataset positions to:
 total_positions = len(positions)
-CROP_SIZE = 768
 
 # Initializing the progress bar with the total number of positions
 with tqdm(total=total_positions, desc="Processing FOVs") as pbar:
@@ -1518,17 +1643,11 @@ with tqdm(total=total_positions, desc="Processing FOVs") as pbar:
     for fov, pos in positions:
         T, C, Z, Y, X = pos.data.shape
         Z_slice = slice(Z // 2, Z // 2 + 1)
-        if CROP_SIZE is not None:
-            Y_slice, X_slice = slice(Y // 2-CROP_SIZE//2, Y // 2 + CROP_SIZE//2 ), slice(X // 2-CROP_SIZE//2, X // 2 + CROP_SIZE//2 )
-            Y = CROP_SIZE
-            X = CROP_SIZE
-        else:
-            Y_slice, X_slice = slice(None), slice(None)
         # Getting the arrays and the center slices
-        phase_image = pos.data[:, phase_cidx : phase_cidx + 1, Z_slice, Y_slice, X_slice]
-        target_nucleus = pos.data[0, nuc_cidx : nuc_cidx + 1, Z_slice, Y_slice, X_slice]
-        target_membrane = pos.data[0, mem_cidx : mem_cidx + 1, Z_slice, Y_slice, X_slice]
-        target_nuc_label = pos.data[0, nuc_label_cidx : nuc_label_cidx + 1, Z_slice, Y_slice, X_slice]
+        phase_image = pos.data[:, phase_cidx : phase_cidx + 1, Z_slice]
+        target_nucleus = pos.data[0, nuc_cidx : nuc_cidx + 1, Z_slice]
+        target_membrane = pos.data[0, mem_cidx : mem_cidx + 1, Z_slice]
+        target_nuc_label = pos.data[0, nuc_label_cidx : nuc_label_cidx + 1, Z_slice]
 
         # normalize the phase
         phase_image = normalize_fov(phase_image)
@@ -1537,89 +1656,61 @@ with tqdm(total=total_positions, desc="Processing FOVs") as pbar:
         phase_image = torch.from_numpy(phase_image).type(torch.float32)
         phase_image = phase_image.to(phase2fluor_model.device)
         with torch.inference_mode():  # turn off gradient computation.
-            predicted_image_phase2fluor = phase2fluor_model(phase_image.to(phase2fluor_model.device))
-            predicted_image_pretrained = pretrained_phase2fluor(phase_image.to(pretrained_phase2fluor.device))
+            predicted_image_phase2fluor = phase2fluor_model(phase_image)
+            predicted_image_pretrained = pretrained_phase2fluor(phase_image)
 
         # Loading and Normalizing the target and predictions for both models
-        predicted_image_phase2fluor = (
-            predicted_image_phase2fluor.cpu().numpy().squeeze(0)
-        )
+        predicted_image_phase2fluor = predicted_image_phase2fluor.cpu().numpy().squeeze(0)
         predicted_image_pretrained = predicted_image_pretrained.cpu().numpy().squeeze(0)
         phase_image = phase_image.cpu().numpy().squeeze(0)
 
-        target_mem = rescale_intensity(target_membrane[0, 0], out_range=(0, 1))
-        target_nuc = rescale_intensity(target_nucleus[0, 0], out_range=(0, 1))
+        target_mem = min_max_scale(target_membrane[0, 0])
+        target_nuc = min_max_scale(target_nucleus[0, 0])
 
         # Normalizing the dataset using min-max scaling
-        predicted_mem_phase2fluor = rescale_intensity(
-            predicted_image_phase2fluor[1, :, :, :].squeeze(0), out_range=(0, 1)
-        )
-        predicted_nuc_phase2fluor = rescale_intensity(
-            predicted_image_phase2fluor[0, :, :, :].squeeze(0), out_range=(0, 1)
-        )
+        predicted_mem_phase2fluor = min_max_scale(predicted_image_phase2fluor[1, :, :, :].squeeze(0))
+        predicted_nuc_phase2fluor = min_max_scale(predicted_image_phase2fluor[0, :, :, :].squeeze(0))
 
-        predicted_mem_pretrained = rescale_intensity(
-            predicted_image_pretrained[1, :, :, :].squeeze(0), out_range=(0, 1)
-        )
-        predicted_nuc_pretrained = rescale_intensity(
-            predicted_image_pretrained[0, :, :, :].squeeze(0), out_range=(0, 1)
-        )
+        predicted_mem_pretrained = min_max_scale(predicted_image_pretrained[1, :, :, :].squeeze(0))
+        predicted_nuc_pretrained = min_max_scale(predicted_image_pretrained[0, :, :, :].squeeze(0))
 
         #######  Pixel-based Metrics ############
-        # Compute SSIM and Pearson correlation for phase2fluor_model
+        # Compute microSSIM and Pearson correlation for phase2fluor_model
         pbar.set_description(f"Processing FOV {fov} - Computing Pixel Metrics")
         pbar.refresh()
-        ssim_nuc_phase2fluor = metrics.structural_similarity(
-            target_nuc, predicted_nuc_phase2fluor, data_range=1
-        )
-        ssim_mem_phase2fluor = metrics.structural_similarity(
-            target_mem, predicted_mem_phase2fluor, data_range=1
-        )
-        pearson_nuc_phase2fluor = np.corrcoef(
-            target_nuc.flatten(), predicted_nuc_phase2fluor.flatten()
-        )[0, 1]
-        pearson_mem_phase2fluor = np.corrcoef(
-            target_mem.flatten(), predicted_mem_phase2fluor.flatten()
-        )[0, 1]
+        ssim_nuc_phase2fluor = micro_structural_similarity(target_nuc, predicted_nuc_phase2fluor)
+        ssim_mem_phase2fluor = micro_structural_similarity(target_mem, predicted_mem_phase2fluor)
+        pearson_nuc_phase2fluor = np.corrcoef(target_nuc.flatten(), predicted_nuc_phase2fluor.flatten())[0, 1]
+        pearson_mem_phase2fluor = np.corrcoef(target_mem.flatten(), predicted_mem_phase2fluor.flatten())[0, 1]
 
         test_pixel_metrics.loc[len(test_pixel_metrics)] = {
             "model": "phase2fluor",
             "fov": fov,
             "pearson_nuc": pearson_nuc_phase2fluor,
-            "SSIM_nuc": ssim_nuc_phase2fluor,
+            "microSSIM_nuc": ssim_nuc_phase2fluor,
             "pearson_mem": pearson_mem_phase2fluor,
-            "SSIM_mem": ssim_mem_phase2fluor,
+            "microSSIM_mem": ssim_mem_phase2fluor,
         }
-        # Compute SSIM and Pearson correlation for pretrained_model
-        ssim_nuc_pretrained = metrics.structural_similarity(
-            target_nuc, predicted_nuc_pretrained, data_range=1
-        )
-        ssim_mem_pretrained = metrics.structural_similarity(
-            target_mem, predicted_mem_pretrained, data_range=1
-        )
-        pearson_nuc_pretrained = np.corrcoef(
-            target_nuc.flatten(), predicted_nuc_pretrained.flatten()
-        )[0, 1]
-        pearson_mem_pretrained = np.corrcoef(
-            target_mem.flatten(), predicted_mem_pretrained.flatten()
-        )[0, 1]
+        # Compute microSSIM and Pearson correlation for pretrained_model
+        ssim_nuc_pretrained = micro_structural_similarity(target_nuc, predicted_nuc_pretrained)
+        ssim_mem_pretrained = micro_structural_similarity(target_mem, predicted_mem_pretrained)
+        pearson_nuc_pretrained = np.corrcoef(target_nuc.flatten(), predicted_nuc_pretrained.flatten())[0, 1]
+        pearson_mem_pretrained = np.corrcoef(target_mem.flatten(), predicted_mem_pretrained.flatten())[0, 1]
 
         test_pixel_metrics.loc[len(test_pixel_metrics)] = {
             "model": "pretrained_phase2fluor",
             "fov": fov,
             "pearson_nuc": pearson_nuc_pretrained,
-            "SSIM_nuc": ssim_nuc_pretrained,
+            "microSSIM_nuc": ssim_nuc_pretrained,
             "pearson_mem": pearson_mem_pretrained,
-            "SSIM_mem": ssim_mem_pretrained,
+            "microSSIM_mem": ssim_mem_pretrained,
         }
 
         ###### Segmentation based metrics #########
         # Load the manually curated nuclei target label
         pbar.set_description(f"Processing FOV {fov} - Computing Segmentation Metrics")
         pbar.refresh()
-        pred_label, target_label = cellpose_segmentation(
-            predicted_nuc_phase2fluor, target_nucleus[0,0]
-        )
+        pred_label, target_label = cellpose_segmentation(predicted_nuc_phase2fluor, target_nuc)
         # Binary labels
         pred_label_binary = pred_label > 0
         target_label_binary = target_label > 0
@@ -1633,9 +1724,7 @@ with tqdm(total=total_positions, desc="Processing FOVs") as pbar:
             "model": "phase2fluor",
             "fov": fov,
             "masks_per_fov": num_masks_fov,
-            "accuracy": accuracy(
-                pred_label_binary, target_label_binary, task="binary"
-            ).item(),
+            "accuracy": accuracy(pred_label_binary, target_label_binary, task="binary").item(),
             "dice": dice_score(
                 pred_label_binary.long()[None],
                 target_label_binary.long()[None],
@@ -1643,18 +1732,14 @@ with tqdm(total=total_positions, desc="Processing FOVs") as pbar:
                 input_format="index",
                 average="micro",
             ).item(),
-            "jaccard": jaccard_index(
-                pred_label_binary, target_label_binary, task="binary"
-            ).item(),
+            "jaccard": jaccard_index(pred_label_binary, target_label_binary, task="binary").item(),
             "mAP": coco_metrics["map"].item(),
             "mAP_50": coco_metrics["map_50"].item(),
             "mAP_75": coco_metrics["map_75"].item(),
             "mAR_100": coco_metrics["mar_100"].item(),
         }
 
-        pred_label, target_label = cellpose_segmentation(
-            predicted_nuc_pretrained, target_nucleus[0,0]
-        )
+        pred_label, target_label = cellpose_segmentation(predicted_nuc_pretrained, target_nuc)
 
         # Binary labels
         pred_label_binary = pred_label > 0
@@ -1669,9 +1754,7 @@ with tqdm(total=total_positions, desc="Processing FOVs") as pbar:
             "model": "phase2fluor_pretrained",
             "fov": fov,
             "masks_per_fov": num_masks_fov,
-            "accuracy": accuracy(
-                pred_label_binary, target_label_binary, task="binary"
-            ).item(),
+            "accuracy": accuracy(pred_label_binary, target_label_binary, task="binary").item(),
             "dice": dice_score(
                 pred_label_binary.long()[None],
                 target_label_binary.long()[None],
@@ -1679,9 +1762,7 @@ with tqdm(total=total_positions, desc="Processing FOVs") as pbar:
                 input_format="index",
                 average="micro",
             ).item(),
-            "jaccard": jaccard_index(
-                pred_label_binary, target_label_binary, task="binary"
-            ).item(),
+            "jaccard": jaccard_index(pred_label_binary, target_label_binary, task="binary").item(),
             "mAP": coco_metrics["map"].item(),
             "mAP_50": coco_metrics["map_50"].item(),
             "mAP_75": coco_metrics["map_75"].item(),
@@ -1697,7 +1778,7 @@ with tqdm(total=total_positions, desc="Processing FOVs") as pbar:
         position.create_image("0", output_array)
 
         # Update the progress bar
-        pbar.set_description(f"Processing FOVs")
+        pbar.set_description("Processing FOVs")
         pbar.update(1)
 
 # Close the OME-Zarr files
@@ -1705,10 +1786,8 @@ test_dataset.close()
 segmentation_store.close()
 # %%
 # Save the test metrics into a dataframe
-pixel_metrics_path = training_top_dir / "04_image_translation/VS_metrics_pixel.csv"
-segmentation_metrics_path = (
-    training_top_dir / "04_image_translation/VS_metrics_segments.csv"
-)
+pixel_metrics_path = training_top_dir / "06_image_translation/VS_metrics_pixel.csv"
+segmentation_metrics_path = training_top_dir / "06_image_translation/VS_metrics_segments.csv"
 test_pixel_metrics.to_csv(pixel_metrics_path)
 test_segmentation_metrics.to_csv(segmentation_metrics_path)
 
@@ -1732,7 +1811,7 @@ test_segmentation_metrics.to_csv(segmentation_metrics_path)
 # Boxplot of the metrics
 test_pixel_metrics.boxplot(
     by="model",
-    column=["pearson_nuc", "SSIM_nuc", "pearson_mem", "SSIM_mem"],
+    column=["pearson_nuc", "microSSIM_nuc", "pearson_mem", "microSSIM_mem"],
     rot=30,
     figsize=(8, 8),
 )
@@ -1761,7 +1840,7 @@ plt.show()
 
 # %% [markdown]
 # ### Plotting the predictions and segmentations
-# <div class="alert alert-info"> 
+# <div class="alert alert-info">
 #
 # <h3> Task 2.4: Visualize the predictions and segmentations </h3>
 # Here we will plot the predictions and segmentations side by side for the pretrained and trained models.<br>
@@ -1812,13 +1891,9 @@ axs[2, 2].set_title("Pred Membrane Pretrained")
 # Fourth row: target_nuc, segment_nuc, segment_nuc2
 axs[3, 0].imshow(target_nuc[y_slice, x_slice], cmap="gray")
 axs[3, 0].set_title("Target Nucleus")
-axs[3, 1].imshow(
-    label2rgb(np.array(target_label[y_slice, x_slice], dtype="int")), cmap="gray"
-)
+axs[3, 1].imshow(label2rgb(np.array(target_label[y_slice, x_slice], dtype="int")), cmap="gray")
 axs[3, 1].set_title("Segmented Nucleus (Target)")
-axs[3, 2].imshow(
-    label2rgb(np.array(pred_label[y_slice, x_slice], dtype="int")), cmap="gray"
-)
+axs[3, 2].imshow(label2rgb(np.array(pred_label[y_slice, x_slice], dtype="int")), cmap="gray")
 axs[3, 2].set_title("Segmented Nucleus")
 
 # Hide axes ticks
@@ -1844,11 +1919,11 @@ plt.show()
 
 # %% [markdown] tags=[]
 # <div class="alert alert-info">
-# 
+#
 # ### Task 2.5: Evaluate a fluorescence to phase model
-# In this section, we will explore the inverse transformation using fluorescence images 
-# (nuclei + membrane) to predict the phase image. 
-# 
+# In this section, we will explore the inverse transformation using fluorescence images
+# (nuclei + membrane) to predict the phase image.
+#
 # <h3>Learning Goals:</h3>
 # <ul>
 # <li> Understand the concept of fluorescence to phase transformations in image translation </li>
@@ -1861,10 +1936,10 @@ plt.show()
 
 # %% [markdown] tags=[]
 # <div class="alert alert-warning">
-# 
+#
 # <h3>Questions</h3>
 # <ul>
-# <li> How much information is lost in the phase to fluorescence transformation? </li>   
+# <li> How much information is lost in the phase to fluorescence transformation? </li>
 # <li> Why might perfect reconstruction not be possible? </li>
 # <li> Can multiple phase patterns produce similar fluorescence signals? </li>
 # </ul>
@@ -1872,7 +1947,7 @@ plt.show()
 
 # %%
 # Path to the pretrained fluorescence to phase model checkpoint
-fluor2phase_model_path = Path('/mnt/efs/aimbl_2025/data/04_image_translation/pretrained_models/AIMBL_Demo/fluor2phase_step668.ckpt')
+fluor2phase_model_path = top_dir / "pretrained_models/AIMBL_Demo/fluor2phase_step668.ckpt"
 
 
 # %% tags=["task"]
@@ -1895,21 +1970,25 @@ print("Loading pretrained fluorescence-to-phase model...")
 # TODO: Replace this with actual model loading code
 fluor2phase_config = dict(
     in_channels=...,  # Nuclei + Membrane channels
-    out_channels=...,  # Phase channel 
+    out_channels=...,  # Phase channel
     encoder_blocks=[3, 3, 9, 3],
     dims=[96, 192, 384, 768],
     decoder_conv_blocks=2,
     stem_kernel_size=(1, 2, 2),
     in_stack_depth=1,
 )
-fluor2phase_model = VSUNet.load_from_checkpoint(fluor2phase_model_path, model_config=fluor2phase_config, architecture="fcmae")
-assert fluor2phase_model is not None, "Fluorescence to phase model not loaded. Check the model config,and the path to the model checkpoint."
+fluor2phase_model = VSUNet.load_from_checkpoint(
+    fluor2phase_model_path, model_config=fluor2phase_config, architecture="fcmae"
+)
+assert fluor2phase_model is not None, (
+    "Fluorescence to phase model not loaded. Check the model config,and the path to the model checkpoint."
+)
 fluor2phase_model.eval()
 
 # %% tags=["task"]
 # Test the fluorescence to phase model on our test data
 
-source_channel_fluor= ["TODO","TODO"]
+source_channel_fluor = ["TODO", "TODO"]
 target_channel_labelfree = ["TODO"]
 
 test_data_fluor2phase = HCSDataModule(
@@ -1922,7 +2001,7 @@ test_data_fluor2phase = HCSDataModule(
 )
 test_data_fluor2phase.setup("test")
 
-    
+
 # Get a test sample
 sample = next(iter(test_data_fluor2phase.test_dataloader()))
 
@@ -1938,9 +2017,9 @@ fluor_input = ...  # TODO: Source
 target_phase = ...  # TODO: Target
 
 # TODO: Make prediction with the fluorescence to phase model
-# NOTE: The `fluor2phase_model`, returns a tuple. Select the first item with `[0]`  
+# NOTE: The `fluor2phase_model`, returns a tuple. Select the first item with `[0]`
 with torch.inference_mode():
-    predicted_phase = ... 
+    predicted_phase = ...
 
 # #######################
 # ##### TODO ########
@@ -1949,16 +2028,15 @@ with torch.inference_mode():
 # HINT: Use SSIM and Pearson correlation as before
 
 # TODO: Normalize data range to 0-1
-###### YOUR CODE HERE ######  
+###### YOUR CODE HERE ######
 
 # TODO: Calculate SSIM and Pearson correlation
-###### YOUR CODE HERE ######  
+###### YOUR CODE HERE ######
 
 # TODO: Print metrics
-print(f"Phase Reconstruction Metrics:")
+print("Phase Reconstruction Metrics:")
 print(f"SSIM: {ssim_phase:.3f}")
 print(f"Pearson Correlation: {pearson_phase:.3f}")
-
 
 
 # %% tags=["solution"]
@@ -1989,16 +2067,23 @@ fluor2phase_config = dict(
 print("Fluorescence-to-phase model created (note: using untrained model for demonstration)")
 print("In practice, load a pretrained checkpoint for meaningful results")
 
-print('\nLoading pretrained fluorescence-to-phase model...')
-fluor2phase_model_path = Path('/mnt/efs/aimbl_2025/data/04_image_translation/pretrained_models/AIMBL_Demo/fluor2phase_step668.ckpt')
+print("\nLoading pretrained fluorescence-to-phase model...")
+fluor2phase_model_path = top_dir / "pretrained_models/AIMBL_Demo/fluor2phase_step668.ckpt"
 assert fluor2phase_model_path.exists(), "Fluorescence-to-phase model checkpoint not found. Please check the path."
-fluor2phase_model = VSUNet.load_from_checkpoint(fluor2phase_model_path, model_config=fluor2phase_config, architecture="fcmae")
+fluor2phase_model = VSUNet.load_from_checkpoint(
+    fluor2phase_model_path, model_config=fluor2phase_config, architecture="fcmae"
+)
 fluor2phase_model.eval()
 
 # %% tags=["solution"]
 # Test the fluorescence to phase model on our test data
 
-source_channel_fluor= ["Nucl","Mem"]
+# First-use imports for this cell (kept here so the solution notebook works
+# top-to-bottom even when earlier task-tagged cells are stripped).
+from skimage import metrics  # noqa: E402
+from skimage.exposure import rescale_intensity  # noqa: E402
+
+source_channel_fluor = ["Nucl", "Mem"]
 target_channel_labelfree = ["Phase3D"]
 
 test_data_fluor2phase = HCSDataModule(
@@ -2011,12 +2096,12 @@ test_data_fluor2phase = HCSDataModule(
 )
 test_data_fluor2phase.setup("test")
 
-# Get a test sample  
+# Get a test sample
 sample = next(iter(test_data_fluor2phase.test_dataloader()))
 
 # Extract input channels (fluorescence nuclei and membrane) and target (phase)
-fluor_input = sample['source'].to(fluor2phase_model.device)
-target_image = sample['target'].cpu().numpy().squeeze(0)
+fluor_input = sample["source"].to(fluor2phase_model.device)
+target_image = sample["target"].cpu().numpy().squeeze(0)
 
 # Run inference
 with torch.inference_mode():
@@ -2025,25 +2110,25 @@ with torch.inference_mode():
 fluor_input = fluor_input.cpu().numpy()
 predicted_image = predicted_phase.cpu().numpy().squeeze(0)
 target_phase = rescale_intensity(target_image[0, 0], out_range=(0, 1))
-predicted_phase = rescale_intensity(predicted_image[0,0], out_range=(0, 1))
-ssim_phase = metrics.structural_similarity(target_phase,predicted_phase , data_range=1)
+predicted_phase = rescale_intensity(predicted_image[0, 0], out_range=(0, 1))
+ssim_phase = metrics.structural_similarity(target_phase, predicted_phase, data_range=1)
 pearson_phase = np.corrcoef(target_phase.flatten(), predicted_phase.flatten())[0, 1]
 
-print(f"Phase Reconstruction Metrics:")
+print("Phase Reconstruction Metrics:")
 print(f"SSIM: {ssim_phase:.3f}")
 print(f"Pearson Correlation: {pearson_phase:.3f}")
 
-# %% 
+# %%
 # Visualize the fluorescence to phase transformation results
 # TODO: Visualize the fluorescence to phase transformation results. Modify is as you see fit.
 
 fig, axs = plt.subplots(2, 3, figsize=(15, 10))
 
-axs[0, 0].imshow(fluor_input[0,0,0], cmap="gray")
+axs[0, 0].imshow(fluor_input[0, 0, 0], cmap="gray")
 axs[0, 0].set_title("Input: Nuclei Channel")
-axs[0, 1].imshow(fluor_input[0,1,0], cmap="gray")
+axs[0, 1].imshow(fluor_input[0, 1, 0], cmap="gray")
 axs[0, 1].set_title("Input: Membrane Channel")
-axs[0, 2].imshow(fluor_input[0,0,0] + fluor_input[0,1,0], cmap="gray")
+axs[0, 2].imshow(fluor_input[0, 0, 0] + fluor_input[0, 1, 0], cmap="gray")
 axs[0, 2].set_title("Combined Fluorescence\n(Nuclei + Membrane)")
 
 axs[1, 0].imshow(target_phase, cmap="gray")
@@ -2063,9 +2148,9 @@ plt.show()
 # %% [markdown] tags=[]
 # <div class="alert alert-warning">
 # <h3>Analysis Questions: Why is Phase Reconstruction Imperfect?</h3>
-# 
+#
 # Looking at your results, consider these questions:
-# 
+#
 # <ul>
 # <li>Does the fluorescence image contain all the information needed to reconstruct the phase?</li>
 # <li>What structures are visible in phase but not in fluorescence channels?</li>
@@ -2077,7 +2162,7 @@ plt.show()
 # %% [markdown] tags=[]
 # <div class="alert alert-success">
 # <h3>Key Insights from Fluorescence to Phase Model</h3>
-# 
+#
 # This exploration reveals fundamental limitations in image-to-image translation:
 # <ul>
 # <li> Phase images contain rich structural information about unlabeled cellular components </li>
@@ -2088,13 +2173,13 @@ plt.show()
 # </ul>
 #
 # #### Now, let's return to the `phase2fluor` model!
-# 
+#
 # </div>
 
 # %% [markdown] tags=[]
 # <div class="alert alert-info">
 # <h3>Bonus: Test Time Augmentation (TTA)</h3>
-# 
+#
 # Test Time Augmentation is a technique where you apply multiple augmentations to a single test image,
 # make predictions on each augmented version, and then combine the results (usually by averaging).
 #
@@ -2115,16 +2200,16 @@ plt.show()
 
 # %% tags=["task"]
 from monai.transforms import (
-    Rotate90,
     Flip,
+    Rotate90,
 )
 
 # Get a test sample
 sample = next(iter(test_data.test_dataloader()))
-source_tensor = sample['source'].to(phase2fluor_model.device)
-target_tensor = sample['target']
-target_nuc = target_tensor[0,0].cpu().numpy()
-target_mem = target_tensor[0,1].cpu().numpy()
+source_tensor = sample["source"].to(phase2fluor_model.device)
+target_tensor = sample["target"]
+target_nuc = target_tensor[0, 0].cpu().numpy()
+target_mem = target_tensor[0, 1].cpu().numpy()
 
 # Saving the single prediction without TTA for later comparison
 with torch.inference_mode():
@@ -2150,18 +2235,18 @@ for forward_transform, inverse_transform in transform_list:
     # Apply transform to each sample in batch
     augmented_batch = []
     for i in range(source_tensor.shape[0]):
-        #Apply the forward and store them
+        # Apply the forward and store them
         ###### YOUR CODE HERE ######
         aug_img = ...
         augmented_batch.append(aug_img)
     augmented_source = torch.stack(augmented_batch).to(source_tensor.device)
 
-    #TODO: Run inference on augmented input
+    # TODO: Run inference on augmented input
     with torch.inference_mode():
         ###### YOUR CODE HERE ######
         augmented_pred = ...
 
-    #TODO: De-apply transform to prediction
+    # TODO: De-apply transform to prediction
     deaugmented_batch = []
     for i in range(augmented_pred.shape[0]):
         ###### YOUR CODE HERE ######
@@ -2179,39 +2264,109 @@ averaged_pred = ...
 tta_pred_nuc = ...
 tta_pred_mem = ...
 
-#%% tags=["task"]
+# %% tags=["task"]
 # TODO: Compare TTA results with single prediction
 # Calculate metrics (SSIM, Pearson correlation) for both approaches. Do not forget to normalize the data range to 0-1.
 
-# TODO Normalize data range to 0-1  
-###### YOUR CODE HERE ######  
+# TODO Normalize data range to 0-1
+###### YOUR CODE HERE ######
 
-# TODO Calculate metrics  
-###### YOUR CODE HERE ######  
+# TODO Calculate metrics
+###### YOUR CODE HERE ######
 
-# TODO # TTA prediction metrics  
-###### YOUR CODE HERE ######  
+# TODO # TTA prediction metrics
+###### YOUR CODE HERE ######
 
-# Print comparison  
-print("\nMetrics Comparison:")  
-print(f"{'Metric':<20} {'Single':<10} {'TTA':<10} {'Improvement':<12}")  
-print("-" * 55)  
-print(f"{'SSIM Nucleus':<20} {ssim_nuc_single:.3f}     {ssim_nuc_tta:.3f}     {ssim_nuc_tta-ssim_nuc_single:+.3f}")  
-print(f"{'SSIM Membrane':<20} {ssim_mem_single:.3f}     {ssim_mem_tta:.3f}     {ssim_mem_tta-ssim_mem_single:+.3f}")  
-print(f"{'Pearson Nucleus':<20} {pearson_nuc_single:.3f}     {pearson_nuc_tta:.3f}     {pearson_nuc_tta-pearson_nuc_single:+.3f}")  
-print(f"{'Pearson Membrane':<20} {pearson_mem_single:.3f}     {pearson_mem_tta:.3f}     {pearson_mem_tta-pearson_mem_single:+.3f}")  
+# Print comparison
+print("\nMetrics Comparison:")
+print(f"{'Metric':<20} {'Single':<10} {'TTA':<10} {'Improvement':<12}")
+print("-" * 55)
+print(f"{'SSIM Nucleus':<20} {ssim_nuc_single:.3f}     {ssim_nuc_tta:.3f}     {ssim_nuc_tta - ssim_nuc_single:+.3f}")
+print(f"{'SSIM Membrane':<20} {ssim_mem_single:.3f}     {ssim_mem_tta:.3f}     {ssim_mem_tta - ssim_mem_single:+.3f}")
+print(
+    f"{'Pearson Nucleus':<20} {pearson_nuc_single:.3f}     {pearson_nuc_tta:.3f}     {pearson_nuc_tta - pearson_nuc_single:+.3f}"
+)
+print(
+    f"{'Pearson Membrane':<20} {pearson_mem_single:.3f}     {pearson_mem_tta:.3f}     {pearson_mem_tta - pearson_mem_single:+.3f}"
+)
 
 # %% tags=["solution"]
+# TTA implementation + metrics in one cell: the metrics below reference
+# tta_pred_nuc/tta_pred_mem, so we run the TTA prediction first within the
+# same solution cell. (When the notebook is generated, task-tagged cells are
+# stripped, so we cannot rely on a later cell to populate these variables.)
 
-# Normalize data range to 0-1
-target_nuc[0]= rescale_intensity(target_nuc[0], in_range='image', out_range=(0, 1) )
-single_pred_nuc[0]= rescale_intensity(single_pred_nuc[0], in_range='image', out_range=(0, 1))
-target_mem[0]= rescale_intensity(target_mem[0], in_range='image', out_range=(0, 1))
-single_pred_mem[0]= rescale_intensity(single_pred_mem[0], in_range='image', out_range=(0, 1))
-target_nuc[0]= rescale_intensity(target_nuc[0], in_range='image', out_range=(0, 1))
-tta_pred_nuc[0]= rescale_intensity(tta_pred_nuc[0], in_range='image', out_range=(0, 1))
-tta_pred_mem[0]=rescale_intensity(tta_pred_mem[0], in_range='image', out_range=(0, 1))
-tta_pred_nuc[0]= rescale_intensity(tta_pred_nuc[0], in_range='image', out_range=(0, 1))
+from monai.transforms import (  # noqa: E402, F811
+    Flip,
+    Rotate90,
+)
+
+# Get a test sample
+sample = next(iter(test_data.test_dataloader()))
+source_tensor = sample["source"].to(phase2fluor_model.device)
+target_tensor = sample["target"]
+target_nuc = target_tensor[0, 0].cpu().numpy()
+target_mem = target_tensor[0, 1].cpu().numpy()
+
+predictions = []
+
+# Original prediction without augmentation
+with torch.inference_mode():
+    original_pred = phase2fluor_model(source_tensor)
+    predictions.append(original_pred.cpu().numpy())
+
+# Define the TTA transforms and the inverse transforms as a list of tuples (forward, inverse)
+transform_list = [
+    (Rotate90(k=1, spatial_axes=(-1, -2)), Rotate90(k=3, spatial_axes=(-1, -2))),
+    (Rotate90(k=2, spatial_axes=(-1, -2)), Rotate90(k=2, spatial_axes=(-1, -2))),
+    (Rotate90(k=3, spatial_axes=(-1, -2)), Rotate90(k=1, spatial_axes=(-1, -2))),
+    (Flip(spatial_axis=-2), Flip(spatial_axis=-2)),
+    (Flip(spatial_axis=-1), Flip(spatial_axis=-1)),
+]
+
+for forward_transform, inverse_transform in transform_list:
+    # Apply transform to each sample in batch
+    augmented_batch = []
+    for i in range(source_tensor.shape[0]):
+        img = source_tensor[i].cpu().numpy()
+        aug_img = forward_transform(img)
+        augmented_batch.append(aug_img)
+    augmented_source = torch.stack(augmented_batch).to(source_tensor.device)
+
+    # Run inference on augmented input
+    with torch.inference_mode():
+        augmented_pred = phase2fluor_model(augmented_source)
+
+    # De-apply transform to prediction
+    deaugmented_batch = []
+    for i in range(augmented_pred.shape[0]):
+        pred = augmented_pred[i].cpu().numpy()
+        deaug_pred = inverse_transform(pred)
+        deaugmented_batch.append(deaug_pred)
+    deaugmented_pred = torch.stack(deaugmented_batch)
+
+    predictions.append(deaugmented_pred.cpu().numpy())
+
+# Average all predictions
+averaged_pred = np.stack(predictions).mean(axis=0)
+
+# Extract nucleus and membrane predictions
+tta_pred_nuc = averaged_pred[0, 0]
+tta_pred_mem = averaged_pred[0, 1]
+
+# Compare with single prediction (no TTA)
+with torch.inference_mode():
+    single_pred = phase2fluor_model(source_tensor)
+    single_pred_nuc = single_pred[0, 0].cpu().numpy()
+    single_pred_mem = single_pred[0, 1].cpu().numpy()
+
+# Normalize data range to 0-1 before computing metrics
+target_nuc[0] = rescale_intensity(target_nuc[0], in_range="image", out_range=(0, 1))
+single_pred_nuc[0] = rescale_intensity(single_pred_nuc[0], in_range="image", out_range=(0, 1))
+target_mem[0] = rescale_intensity(target_mem[0], in_range="image", out_range=(0, 1))
+single_pred_mem[0] = rescale_intensity(single_pred_mem[0], in_range="image", out_range=(0, 1))
+tta_pred_nuc[0] = rescale_intensity(tta_pred_nuc[0], in_range="image", out_range=(0, 1))
+tta_pred_mem[0] = rescale_intensity(tta_pred_mem[0], in_range="image", out_range=(0, 1))
 
 # Calculate metrics
 ssim_nuc_single = metrics.structural_similarity(target_nuc[0], single_pred_nuc[0], data_range=1)
@@ -2229,10 +2384,14 @@ pearson_mem_tta = np.corrcoef(target_mem[0].flatten(), tta_pred_mem[0].flatten()
 print("\nMetrics Comparison:")
 print(f"{'Metric':<20} {'Single':<10} {'TTA':<10} {'Improvement':<12}")
 print("-" * 55)
-print(f"{'SSIM Nucleus':<20} {ssim_nuc_single:.3f}     {ssim_nuc_tta:.3f}     {ssim_nuc_tta-ssim_nuc_single:+.3f}")
-print(f"{'SSIM Membrane':<20} {ssim_mem_single:.3f}     {ssim_mem_tta:.3f}     {ssim_mem_tta-ssim_mem_single:+.3f}")
-print(f"{'Pearson Nucleus':<20} {pearson_nuc_single:.3f}     {pearson_nuc_tta:.3f}     {pearson_nuc_tta-pearson_nuc_single:+.3f}")
-print(f"{'Pearson Membrane':<20} {pearson_mem_single:.3f}     {pearson_mem_tta:.3f}     {pearson_mem_tta-pearson_mem_single:+.3f}")
+print(f"{'SSIM Nucleus':<20} {ssim_nuc_single:.3f}     {ssim_nuc_tta:.3f}     {ssim_nuc_tta - ssim_nuc_single:+.3f}")
+print(f"{'SSIM Membrane':<20} {ssim_mem_single:.3f}     {ssim_mem_tta:.3f}     {ssim_mem_tta - ssim_mem_single:+.3f}")
+print(
+    f"{'Pearson Nucleus':<20} {pearson_nuc_single:.3f}     {pearson_nuc_tta:.3f}     {pearson_nuc_tta - pearson_nuc_single:+.3f}"
+)
+print(
+    f"{'Pearson Membrane':<20} {pearson_mem_single:.3f}     {pearson_mem_tta:.3f}     {pearson_mem_tta - pearson_mem_single:+.3f}"
+)
 
 # %%
 # TODO: Modify as you see fit to compute the metrics on the full FOV.
@@ -2242,7 +2401,7 @@ print(f"{'Pearson Membrane':<20} {pearson_mem_single:.3f}     {pearson_mem_tta:.
 fig, axs = plt.subplots(3, 3, figsize=(15, 15))
 
 # First row: Input phase and targets
-axs[0, 0].imshow(source_tensor[0,0,0].cpu().numpy(), cmap="gray")
+axs[0, 0].imshow(source_tensor[0, 0, 0].cpu().numpy(), cmap="gray")
 axs[0, 0].set_title("Input Phase")
 axs[0, 1].imshow(target_nuc[0], cmap="gray")
 axs[0, 1].set_title("Target Nucleus")
@@ -2250,7 +2409,7 @@ axs[0, 2].imshow(target_mem[0], cmap="gray")
 axs[0, 2].set_title("Target Membrane")
 
 # Second row: Single predictions
-axs[1, 0].imshow(source_tensor[0,0,0].cpu().numpy(), cmap="gray")
+axs[1, 0].imshow(source_tensor[0, 0, 0].cpu().numpy(), cmap="gray")
 axs[1, 0].set_title("Input Phase")
 axs[1, 1].imshow(single_pred_nuc[0], cmap="gray")
 axs[1, 1].set_title(f"Single Pred Nucleus\nSSIM: {ssim_nuc_single:.3f}")
@@ -2258,7 +2417,7 @@ axs[1, 2].imshow(single_pred_mem[0], cmap="gray")
 axs[1, 2].set_title(f"Single Pred Membrane\nSSIM: {ssim_mem_single:.3f}")
 
 # Third row: TTA predictions
-axs[2, 0].imshow(source_tensor[0,0,0].cpu().numpy(), cmap="gray")
+axs[2, 0].imshow(source_tensor[0, 0, 0].cpu().numpy(), cmap="gray")
 axs[2, 0].set_title("Input Phase")
 axs[2, 1].imshow(tta_pred_nuc[0], cmap="gray")
 axs[2, 1].set_title(f"TTA Pred Nucleus\nSSIM: {ssim_nuc_tta:.3f}")
@@ -2272,73 +2431,6 @@ for ax in axs.flat:
 
 plt.tight_layout()
 plt.show()
-
-# %% tags=["solution"]
-# Import additional MONAI transforms for TTA
-from monai.transforms import (
-    Flip,
-    Rotate90,
-)
-
-# Get a test sample
-sample = next(iter(test_data.test_dataloader()))
-source_tensor = sample['source'].to(phase2fluor_model.device)
-target_tensor = sample['target']
-target_nuc = target_tensor[0,0].cpu().numpy()
-target_mem = target_tensor[0,1].cpu().numpy()
-
-predictions = []
-
-# Original prediction without augmentation
-with torch.inference_mode():
-    original_pred = phase2fluor_model(source_tensor)
-    predictions.append(original_pred.cpu().numpy())
-
-# Define the TTA transforms and the inverse transforms as a list of tuples (forward, inverse)
-transform_list = [
-    (Rotate90(k=1, spatial_axes=(-1, -2)), Rotate90(k=3, spatial_axes=(-1, -2))),
-    (Rotate90(k=2, spatial_axes=(-1, -2)), Rotate90(k=2, spatial_axes=(-1, -2))), 
-    (Rotate90(k=3, spatial_axes=(-1, -2)), Rotate90(k=1, spatial_axes=(-1, -2))),
-    (Flip(spatial_axis=-2), Flip(spatial_axis=-2)) ,
-    (Flip(spatial_axis=-1), Flip(spatial_axis=-1))
-]
-
-for forward_transform, inverse_transform in transform_list:
-    # Apply transform to each sample in batch
-    augmented_batch = []
-    for i in range(source_tensor.shape[0]):
-        img = source_tensor[i].cpu().numpy()
-        aug_img = forward_transform(img)
-        augmented_batch.append(aug_img)
-    augmented_source = torch.stack(augmented_batch).to(source_tensor.device)
-    
-    # Run inference on augmented input
-    with torch.inference_mode():
-        augmented_pred = phase2fluor_model(augmented_source)
-    
-    # De-apply transform to prediction
-    deaugmented_batch = []
-    for i in range(augmented_pred.shape[0]):
-        pred = augmented_pred[i].cpu().numpy()
-        deaug_pred = inverse_transform(pred)
-        deaugmented_batch.append(deaug_pred)
-    deaugmented_pred = torch.stack(deaugmented_batch)
-    
-    predictions.append(deaugmented_pred.cpu().numpy())
-
-# Average all predictions
-averaged_pred = np.stack(predictions).mean(axis=0)
-
-# Extract nucleus and membrane predictions
-tta_pred_nuc = averaged_pred[0, 0]
-tta_pred_mem = averaged_pred[0, 1]
-
-# Compare with single prediction (no TTA)
-with torch.inference_mode():
-    single_pred = phase2fluor_model(source_tensor)
-    single_pred_nuc = single_pred[0, 0].cpu().numpy()
-    single_pred_mem = single_pred[0, 1].cpu().numpy()
-
 
 # %% [markdown] tags=[]
 # <div class="alert alert-warning">
@@ -2358,9 +2450,9 @@ with torch.inference_mode():
 # %% [markdown] tags=[]
 # <div class="alert alert-success">
 # <h3>Bonus Section Complete!</h3>
-# 
-# You have successfully implemented Test Time Augmentation using MONAI transforms! 
-# 
+#
+# You have successfully implemented Test Time Augmentation using MONAI transforms!
+#
 # Key takeaways:
 # <ul>
 # <li> TTA is particularly useful when prediction quality is critical and computational budget allows </li>
@@ -2393,6 +2485,12 @@ Script to visualize the encoder feature maps of a trained model.
 Using PCA to visualize feature maps is inspired by
 https://doi.org/10.48550/arXiv.2304.07193 (Oquab et al., 2023).
 """
+from typing import NamedTuple  # noqa: E402
+
+from monai.networks.layers import GaussianFilter  # noqa: E402
+from skimage.exposure import rescale_intensity  # noqa: E402
+from sklearn.decomposition import PCA  # noqa: E402
+
 
 def feature_map_pca(feature_map: np.array, n_components: int = 8) -> PCA:
     """
@@ -2411,14 +2509,12 @@ def feature_map_pca(feature_map: np.array, n_components: int = 8) -> PCA:
 def pcs_to_rgb(feat: np.ndarray, n_components: int = 8) -> np.ndarray:
     pca = feature_map_pca(feat[0], n_components=n_components)
     pc_first_3 = pca.components_[:3].reshape(3, *feat.shape[-2:])
-    return np.stack(
-        [rescale_intensity(pc, out_range=(0, 1)) for pc in pc_first_3], axis=-1
-    )
+    return np.stack([rescale_intensity(pc, out_range=(0, 1)) for pc in pc_first_3], axis=-1)
 
 
 # %%
 # Load the test dataset
-test_data_path = top_dir / "04_image_translation/test/a549_hoechst_cellmask_test.zarr"
+test_data_path = top_dir / "test/a549_hoechst_cellmask_test.zarr"
 test_dataset = open_ome_zarr(test_data_path)
 
 # Looking at the test dataset
@@ -2447,9 +2543,7 @@ norm_meta = test_dataset.zattrs["normalization"]["Phase3D"]["dataset_statistics"
 Y, X = test_dataset[f"0/0/{fov}"].data.shape[-2:]
 test_dataset.channel_names
 phase_idx = test_dataset.channel_names.index("Phase3D")
-assert (
-    crop // 2 < Y and crop // 2 < Y
-), "Crop size larger than the image. Check the image shape"
+assert crop // 2 < Y and crop // 2 < Y, "Crop size larger than the image. Check the image shape"
 
 phase_img = test_dataset[f"0/0/{fov}/0"][
     :,
@@ -2477,10 +2571,7 @@ plt.imshow(phase_img[0, 0, 0], cmap="gray")
 # %%
 
 # Loading the pretrained model
-pretrained_model_ckpt = (
-    top_dir
-    / "04_image_translation/pretrained_models/VSCyto2D/epoch=399-step=23200.ckpt"
-)
+pretrained_model_ckpt = top_dir / "pretrained_models/VSCyto2D/epoch=399-step=23200.ckpt"
 # model config as before
 phase2fluor_config = dict(
     in_channels=1,
@@ -2505,9 +2596,7 @@ model = VSUNet.load_from_checkpoint(
 # Extract features
 with torch.inference_mode():
     # encoder
-    encoder_features = model.model.encoder(
-        torch.from_numpy(phase_img.astype(np.float32)).to(model.device)
-    )[0]
+    encoder_features = model.model.encoder(torch.from_numpy(phase_img.astype(np.float32)).to(model.device))[0]
     encoder_features_np = [f.detach().cpu().numpy() for f in encoder_features]
 
     # Print the encoder features shapes
@@ -2547,9 +2636,7 @@ def rescale_clip(image: torch.Tensor) -> np.ndarray:
     return rescale_intensity(image, out_range=(0, 1))[..., None].repeat(3, axis=-1)
 
 
-def composite_nuc_mem(
-    image: torch.Tensor, nuc_color: Color, mem_color: Color
-) -> np.ndarray:
+def composite_nuc_mem(image: torch.Tensor, nuc_color: Color, mem_color: Color) -> np.ndarray:
     c_nuc = rescale_clip(image[0]) * nuc_color
     c_mem = rescale_clip(image[1]) * mem_color
     return rescale_intensity(c_nuc + c_mem, out_range=(0, 1))
@@ -2573,11 +2660,11 @@ ax[-1].set_title("Fluorescence")
 
 for level, feat in enumerate(encoder_features_np):
     ax[level + 1].imshow(pcs_to_rgb(feat, n_components=n_components))
-    ax[level + 1].set_title(f"Encoder stage {level+1} {feat.shape[1:]}")
+    ax[level + 1].set_title(f"Encoder stage {level + 1} {feat.shape[1:]}")
 
 for level, feat in enumerate(decoder_features_np):
     ax[5 + level].imshow(pcs_to_rgb(feat, n_components=n_components))
-    ax[5 + level].set_title(f"Decoder stage {level+1} {feat.shape[1:]}")
+    ax[5 + level].set_title(f"Decoder stage {level + 1} {feat.shape[1:]}")
 
 pred_comp = composite_nuc_mem(prediction[0, :, 0], BOP_BLUE, BOP_ORANGE)
 ax[-2].imshow(clip_p(pred_comp))
@@ -2676,10 +2763,10 @@ plt.show()
 # ########## TODO ##############
 # Try out different multiples of 256 to visualize larger/smaller crops
 n = 3
+# ##############################
 # Center cropping the image
 y_slice = slice(Y // 2 - 256 * n // 2, Y // 2 + 256 * n // 2)
 x_slice = slice(X // 2 - 256 * n // 2, X // 2 + 256 * n // 2)
-# ##############################
 
 f, ax = plt.subplots(3, 2, figsize=(8, 12))
 
@@ -2704,9 +2791,9 @@ ax[1, 0].set_title("No perturbation")
 
 # Select a sigma for the Gaussian filtering
 # ########## TODO ##############
-# Tensor dimensions (B,C,D,H,W).
+# Tensor dimensions (B, C, Z, Y, X).
 # Hint: Use the GaussianFilter layer to blur the phase image. Provide the  num spatial dimensions and sigmas
-# Hint: Spatial (D,H,W)
+# Hint: Spatial (Z, Y, X)
 gaussian_blur = GaussianFilter(...)
 # #############################
 with torch.inference_mode():
@@ -2750,9 +2837,9 @@ ax[1, 0].set_title("No perturbation")
 
 # Select a sigma for the Gaussian filtering
 # ########## SOLUTION ##############
-# Tensor dimensions (B,C,D,H,W).
+# Tensor dimensions (B, C, Z, Y, X).
 # Hint: Use the GaussianFilter layer to blur the phase image. Provide the  num spatial dimensions and sigma
-# Hint: Spatial (D,H,W). Apply the same sigma to H,W
+# Hint: Spatial (Z, Y, X). Apply the same sigma to Y, X
 gaussian_blur = GaussianFilter(spatial_dims=3, sigma=(0, 2, 2))
 # #############################
 with torch.inference_mode():

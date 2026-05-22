@@ -1,95 +1,154 @@
-# Exercise 4: Image translation
+# Exercise: Image translation (Virtual Staining)
 
-Written by Eduardo Hirata-Miyasaki, Ziwen Liu, and Shalin Mehta, CZ Biohub San Francisco with many inputs from Diane Adjavon and Albert Dominguez Mantes for the AI@MBL2025 course
+Written by Eduardo Hirata-Miyasaki, Ziwen Liu, and Shalin Mehta, CZ Biohub San Francisco, with many inputs and bugfixes from present and past TAs of the DL@MBL course (Diane Adjavon, Albert Dominguez Mantes, and others).
 
 ## Overview
 
-In this exercise, we will _virtually stain_ the nuclei and plasma membrane from the quantitative phase image (QPI), i.e., translate QPI images into fluoresence images of nuclei and plasma membranes.
-QPI encodes multiple cellular structures and virtual staining decomposes these structures. After the model is trained, one only needs to acquire label-free QPI data.
-This strategy solves the problem as "multi-spectral imaging", but is more compatible with live cell imaging and high-throughput screening.
-Virtual staining is often a step towards multiple downstream analyses: segmentation, tracking, and cell state phenotyping.
-
-In this exercise, you will:
-- Train a model to predict the fluorescence images of nuclei and plasma membranes from QPI images using CytoLand
-- Make it robust to variations in imaging conditions using data augmentions
-- Segment the cells
-- Use regression and segmentation metrics to evalute the models
-- Visualize the image transform learned by the model
-- Understand the failure modes of the trained model
+In this exercise, we will predict fluorescence images of nuclei and plasma membrane markers from quantitative phase images of cells, i.e., we will _virtually stain_ the nuclei and plasma membrane visible in the phase image.
+This is an example of an image translation task. We will apply spatial and intensity augmentations to train robust models and evaluate their performance. Finally, we will explore the opposite process of predicting a phase image from a fluorescence membrane label.
 
 [![HEK293T](https://raw.githubusercontent.com/mehta-lab/VisCy/main/docs/figures/svideo_1.png)](https://github.com/mehta-lab/VisCy/assets/67518483/d53a81eb-eb37-44f3-b522-8bd7bddc7755)
 (Click on image to play video)
 
-### Goals
+## Goals
 
-#### Part 1: Train a virtual staining model with Cytoland
+### Part 1: Learn to use iohub (I/O library), VisCy dataloaders, and TensorBoard.
 
+  - Use a OME-Zarr dataset of 34 FOVs of adenocarcinomic human alveolar basal epithelial cells (A549),
+  each FOV has 3 channels (phase, nuclei, and cell membrane).
+  The nuclei were stained with DAPI and the cell membrane with Cellmask.
   - Explore OME-Zarr using [iohub](https://czbiohub-sf.github.io/iohub/main/index.html)
   and the high-content-screen (HCS) format.
-  - Use our `viscy.data.HCSDataloader()` dataloader and explore the  3 channel (phase, fluoresecence nuclei and cell membrane) 
-  A549 cell dataset. 
-  - Implement data augmentations [MONAI](https://monai.io/) to train a robust model to imaging parameters and conditions. 
-  - Use tensorboard to log the augmentations, training and validation losses and batches
-  - Start the training of the UNeXt2 model to predict nuclei and membrane from phase images.
+  - Use [MONAI](https://monai.io/) to implement data augmentations.
 
-#### Part 2:Evaluate the model to translate phase into fluorescence.
-  - Compare the performance of your trained model with the _VSCyto2D_ pre-trained model.
+### Part 2: Train and evaluate the model to translate phase into fluorescence, and vice versa.
+  - Train a 2D UNeXt2 model to predict nuclei and membrane from phase images.
+  - Compare the performance of the trained model and a pre-trained model.
   - Evaluate the model using pixel-level and instance-level metrics.
 
-### Part 2.5: Evaluate the model to translate fluorescence to phase
-  - Compare the model trained from fluorescence to phase
 
-#### Part 3: Visualize the image transforms learned by the model and explore the model's regime of validity
-  - Visualize the first 3 principal componets mapped to a color space in each encoder and decoder block.
-  - Explore the model's regime of validity by applying blurring and scaling transforms to the input phase image.
-
-#### For more information:
-Checkout [VisCy](https://github.com/mehta-lab/VisCy),
-our deep learning pipeline for training and deploying computer vision models
-for image-based phenotyping including the robust virtual staining of landmark organelles.
-
-VisCy exploits recent advances in data and metadata formats
-([OME-zarr](https://www.nature.com/articles/s41592-021-01326-w)) and DL frameworks,
-[PyTorch Lightning](https://lightning.ai/) and [MONAI](https://monai.io/).
-
+Checkout [VisCy](https://github.com/mehta-lab/VisCy) and the
+[cytoland](https://github.com/mehta-lab/VisCy/tree/modular-viscy-staging/applications/cytoland)
+application — our deep learning pipeline for training and deploying computer
+vision models for image-based phenotyping, including the robust virtual
+staining of landmark organelles. VisCy exploits recent advances in data and
+metadata formats ([OME-zarr](https://www.nature.com/articles/s41592-021-01326-w))
+and DL frameworks ([PyTorch Lightning](https://lightning.ai/) and
+[MONAI](https://monai.io/)).
 
 ## Setup
 
-Create an `mkdir image_translation` folder  and `cd image_translation` command into it.
+There are two setup scripts depending on your role:
 
-Run the setup script to create the environment for this exercise and download the dataset.
+- **Students:** run [`setup_student.sh`](setup_student.sh) — creates a per-user
+  Python venv, registers a Jupyter kernel, and downloads the data only if it
+  isn't already on disk.
+- **TAs / course operators:** run [`setup_TA.sh`](setup_TA.sh) before the
+  course to pre-stage the ~14 GB of data + checkpoint onto a shared
+  filesystem so each student doesn't have to re-download it.
+
+### Student
+
+Clone this repository and run the setup script from the repo root:
+
 ```bash
-sh setup_student.sh
-
+git clone https://github.com/dl-janelia/image_translation.git
+cd image_translation
+bash setup_student.sh
 ```
-Activate your environment
+
+If your TA pre-staged the data on a shared mount, point `DATA_ROOT` at it to
+skip the download:
+
 ```bash
-conda activate 04_image_translation
+DATA_ROOT=/path/to/shared/image_translation bash setup_student.sh
 ```
 
-## Use vscode
+The script will:
 
-Install vscode, install jupyter extension inside vscode, and setup [cell mode](https://code.visualstudio.com/docs/python/jupyter-support-py). Open [exercise.py](exercise.py) and run the script interactively.
+- Install [`uv`](https://docs.astral.sh/uv/) if it isn't already on your PATH.
+- Create a Python 3.13 virtual environment at `./.venv`.
+- Install `cytoland` + `viscy` and the tutorial extras
+  (`cellpose`, `torchview`, `microssim`, `jupyter`, `ipykernel`,
+  `ipywidgets`, `jupytext`, `nbformat`, `nbconvert`).
+  Today the new modular packages
+  (`viscy-data`, `viscy-models`, `viscy-transforms`, `viscy-utils`, `cytoland`)
+  are installed straight from the [VisCy](https://github.com/mehta-lab/VisCy)
+  `modular-viscy-staging` branch (uv workspace). Once a fixed alpha is
+  published, the script will switch to PyPI (`viscy>=0.5.0a*`). Override the
+  install ref any time with:
+  ```bash
+  VISCY_REF=main bash setup_student.sh        # or a tag, commit, branch, etc.
+  ```
+- Register the venv as a Jupyter kernel named **`06_image_translation`**
+  (display name: *Python (06_image_translation)*).
+- Download the training / test OME-Zarr datasets and the VSCyto2D
+  pretrained checkpoint into `$DATA_ROOT`
+  (default `~/data/06_image_translation/`), unless the data is already
+  present.
 
-## Use Jupyter Notebook / Lab
+Everything is self-contained inside this folder — no conda required.
 
-The matching exercise and solution notebooks can be found [here](https://github.com/dlmbl/image_translation/tree/28e0e515b4a8ad3f392a69c8341e105f730d204f) on the course repository.
+### TA / course operator
 
-Launch a jupyter lab environment
+Run once before the course, ideally targeting a shared mount:
 
+```bash
+cd image_translation
+DATA_ROOT=/path/to/shared/image_translation bash setup_TA.sh
 ```
-jupyter lab
+
+This downloads the OME-Zarr v3 datasets (~14 GB) and the pretrained
+checkpoint into `$DATA_ROOT`. Typical runtime is 20–40 min. It does
+**not** create a Python environment — students do that themselves with
+`setup_student.sh`.
+
+Students then reuse the staged copy with:
+
+```bash
+DATA_ROOT=/path/to/shared/image_translation bash setup_student.sh
 ```
 
-...and continue with the instructions in the notebook.
+## Use VSCode
 
-If `04_image_translation` is not available as a kernel in jupyter, run:
+Install VSCode and the Python + Jupyter extensions, then open
+[`solution.py`](solution.py) and pick the **Python (06_image_translation)**
+kernel from the top-right kernel selector. The script uses
+[cell mode](https://code.visualstudio.com/docs/python/jupyter-support-py), so
+you can execute each `# %%` block interactively.
 
+## Use Jupyter Notebook
+
+The exercise / solution notebooks are regenerated from `solution.py` by a
+GitHub Action on every push, but you can also build them locally:
+
+```bash
+bash prepare-exercise.sh         # regenerates exercise.ipynb + solution.ipynb
+./.venv/bin/jupyter lab          # then pick the Python (06_image_translation) kernel
 ```
-python -m ipykernel install --user --name=04_image_translation
+
+If the kernel is missing (e.g. you reinstalled the venv), re-register it:
+
+```bash
+./.venv/bin/python -m ipykernel install --user \
+    --name 06_image_translation \
+    --display-name "Python (06_image_translation)"
 ```
 
-### References
+## Troubleshooting
 
-- [Liu, Z. and Hirata-Miyasaki, E. et al. (2025) Robust Virtual Staining of Cellular Landmarks](https://www.nature.com/articles/s42256-025-01046-2)
-- [Guo et al. (2020) Revealing architectural order with quantitative label-free imaging and deep learning. eLife](https://elifesciences.org/articles/55502)
+- **Install fails with `Because only viscy<=0.4.0 is available...`** — your
+  shell ignored `VISCY_REF`. Re-run from a fresh shell with the env var
+  exported: `VISCY_REF=modular-viscy-staging bash setup_student.sh`.
+- **`AttributeError: 'ImageArray' object has no attribute 'name'`** — you're
+  on the old `v0.5.0a0` tag, which is broken against current iohub. The
+  default `VISCY_REF=modular-viscy-staging` already avoids this; if you
+  pinned a tag, switch back to the branch.
+- **No GPU on your machine** — the data and model load on CPU too, but
+  Part 2 training is impractical without one. Use a course-provided GPU
+  node.
+
+## References
+
+- [Liu, Z. and Hirata-Miyasaki, E. et al. (2025) Robust virtual staining of landmark organelles with Cytoland. *Nature Machine Intelligence*](https://www.nature.com/articles/s42256-025-01046-2)
+- [Guo et al. (2020) Revealing architectural order with quantitative label-free imaging and deep learning. *eLife*](https://elifesciences.org/articles/55502)

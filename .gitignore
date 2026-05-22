@@ -1,3 +1,5 @@
 *lightning_logs*
 .vscode
 data/
+.venv/
+tmp/

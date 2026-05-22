@@ -1,38 +1,63 @@
 #!/usr/bin/env -S bash -i
+#
+# Image-translation exercise — TA / course-operator setup.
+#
+# Pre-stage the OME-Zarr datasets and pretrained VSCyto2D checkpoint onto a
+# shared filesystem BEFORE the course starts so each student doesn't have to
+# re-download ~14 GB. This typically takes 20–40 min depending on link speed
+# and storage backend.
+#
+# Usage:
+#
+#   # Default: stage to ~/data/image_translation/
+#   bash setup_TA.sh
+#
+#   # Stage to a shared mount (recommended for courses):
+#   DATA_ROOT=/mnt/efs/image_translation bash setup_TA.sh
+#
+# Once this finishes, students point setup_student.sh at the same DATA_ROOT
+# and skip the download:
+#
+#   DATA_ROOT=/mnt/efs/image_translation bash setup_student.sh
+#
+# This script does NOT create a Python environment. Run setup_student.sh for
+# that (it can be run before, after, or instead of this script).
+
+set -euo pipefail
 
 START_DIR=$(pwd)
+KERNEL_NAME="${KERNEL_NAME:-06_image_translation}"
+DATA_ROOT="${DATA_ROOT:-$HOME/data/$KERNEL_NAME}"
 
-# Create conda environment
-conda create -y --name 04_image_translation python=3.11
+mkdir -p "$DATA_ROOT/training" "$DATA_ROOT/test" "$DATA_ROOT/pretrained_models"
 
-# Install ipykernel in the environment.
-conda install -y ipykernel nbformat nbconvert black jupytext ipywidgets --name 04_image_translation
-# Specifying the environment explicitly.
-# conda activate sometimes doesn't work from within shell scripts.
+echo "Staging data + checkpoint into $DATA_ROOT ..."
+echo "(this typically takes 20-40 min)"
 
-# install viscy and its dependencies`s in the environment using pip.
-# Find path to the environment - conda activate doesn't work from within shell scripts.
-ENV_PATH=$(conda info --envs | grep 04_image_translation | awk '{print $NF}')
-$ENV_PATH/bin/pip install "viscy[metrics,visual]==0.4.0a2"
-$ENV_PATH/bin/pip install "jupyterlab"
+cd "$DATA_ROOT/training"
+wget -m -np -nH --cut-dirs=6 -R "index.html*" "https://public.czbiohub.org/comp.micro/viscy/VS_datasets/VSCyto2D/training/zarrv3/a549_hoechst_cellmask_train_val.zarr/"
 
-# Create the directory structure
-# NOTE: This takes about 20-40 minutes to run. This should be done before the exercise starts
-output_dir=/mnt/efs/aimbl_2025
-mkdir -p "$output_dir"/data/04_image_translation/training
-mkdir -p "$output_dir"/data/04_image_translation/test
-mkdir -p "$output_dir"/data/04_image_translation/pretrained_models
-# ln -s "$output_dir"/data ~/data
+cd "$DATA_ROOT/test"
+wget -m -np -nH --cut-dirs=6 -R "index.html*" "https://public.czbiohub.org/comp.micro/viscy/VS_datasets/VSCyto2D/test/zarrv3/a549_hoechst_cellmask_test.zarr/"
 
-# Change to the target directory
-cd "$output_dir"/data/04_image_translation/training
-# Download the OME-Zarr dataset recursively
-wget -m -np -nH --cut-dirs=5 -R "index.html*" "https://public.czbiohub.org/comp.micro/viscy/VS_datasets/VSCyto2D/training/a549_hoechst_cellmask_train_val.zarr/"
-cd "$output_dir"/data/04_image_translation/test
-wget -m -np -nH --cut-dirs=5 -R "index.html*" "https://public.czbiohub.org/comp.micro/viscy/VS_datasets/VSCyto2D/test/a549_hoechst_cellmask_test.zarr/"
-cd "$output_dir"/data/04_image_translation/pretrained_models
+cd "$DATA_ROOT/pretrained_models"
 wget -m -np -nH --cut-dirs=4 -R "index.html*" "https://public.czbiohub.org/comp.micro/viscy/VS_models/VSCyto2D/VSCyto2D/epoch=399-step=23200.ckpt"
+# Second checkpoint used in Task 2.5 (fluorescence -> phase reverse model).
 wget -m -np -nH --cut-dirs=4 -R "index.html*" "https://public.czbiohub.org/comp.micro/viscy/VS_models/VSCyto2D/AIMBL_Demo/fluor2phase_step668.ckpt"
 
-# Change back to the starting directory
-cd $START_DIR
+cd "$START_DIR"
+
+cat <<EOF
+
+--------------------------------------------------------------------
+TA setup complete.
+
+  - data: $DATA_ROOT
+
+Tell students to run:
+  DATA_ROOT=$DATA_ROOT bash setup_student.sh
+
+This will create their per-user venv + jupyter kernel and reuse the
+pre-staged data (no re-download).
+--------------------------------------------------------------------
+EOF
