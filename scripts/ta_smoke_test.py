@@ -73,6 +73,16 @@ print(f"  GPU: {torch.cuda.get_device_name(0)}")
 BATCH_SIZE = int(os.environ.get("TA_SMOKE_BATCH_SIZE", "2"))
 YX_PATCH = int(os.environ.get("TA_SMOKE_PATCH", "192"))
 YX_PATCH_SIZE = (YX_PATCH, YX_PATCH)
+
+# RandWeightedCropd is configured below with `num_samples=2` (matches the
+# solution.py augmentation chain). viscy enforces `batch_size %
+# num_samples == 0`, so batch_size=1 is rejected. Round up to the nearest
+# valid value rather than crashing inside viscy with an opaque message.
+if BATCH_SIZE % 2 != 0:
+    print(f"  NOTE: BATCH_SIZE={BATCH_SIZE} is incompatible with num_samples=2 "
+          f"in RandWeightedCropd; rounding up to {BATCH_SIZE + 1}.")
+    BATCH_SIZE += 1
+
 print(f"  smoke config: batch_size={BATCH_SIZE}, yx_patch={YX_PATCH_SIZE}")
 source_channel = ["Phase3D"]
 target_channel = ["Nucl", "Mem"]
