@@ -52,7 +52,7 @@
 # [PyTorch Lightning](https://lightning.ai/) and [MONAI](https://monai.io/).
 
 # ### References
-# - [Liu, Z. and Hirata-Miyasaki, E. et al. (2024) Robust Virtual Staining of Cellular Landmarks](https://www.biorxiv.org/content/10.1101/2024.05.31.596901v2.full.pdf)
+# - [Liu, Z. and Hirata-Miyasaki, E. et al. (2025) Robust virtual staining of landmark organelles with Cytoland](https://www.nature.com/articles/s42256-025-01046-2)
 # - [Guo et al. (2020) Revealing architectural order with quantitative label-free imaging and deep learning. eLife](https://elifesciences.org/articles/55502)
 
 # %% [markdown] tags=[]
@@ -127,9 +127,11 @@ import torch
 import torchview
 import torchvision
 from cellpose import models
+from cmap import Colormap
 from iohub import open_ome_zarr
 from iohub.reader import print_info
 from lightning.pytorch import seed_everything
+from lightning.pytorch.callbacks import TQDMProgressBar
 from lightning.pytorch.loggers import TensorBoardLogger
 
 # microSSIM: SSIM variant designed for fluorescence microscopy.
@@ -148,11 +150,11 @@ from tqdm import tqdm
 from cytoland.engine import VSUNet
 
 # HCSDataModule makes it easy to load data during training.
-from viscy_data._utils import BatchedCenterSpatialCropd
 from viscy_data.hcs import HCSDataModule
 
 # training augmentations
 from viscy_transforms import (
+    CenterSpatialCropd,
     NormalizeSampled,
     RandAdjustContrastd,
     RandAffined,
@@ -248,9 +250,11 @@ tensorboard_process = launch_tensorboard(log_dir)
 # so each FOV is addressable by `dataset[f"{row}/{col}/{field}/{level}"]` and
 # returns an `(T, C, Z, Y, X)` array.
 #
-# This dataset has 34 FOVs of 2048×2048 images across 3 channels (QPI, nuclei
-# stained with DAPI, membrane stained with Cellmask), a single pyramid level
-# `0`, and a single time point.
+# This dataset has 24 FOVs of 2048×2048 images across 3 channels (QPI, nuclei
+# stained with DAPI, membrane stained with Cellmask), four pyramid levels
+# (`0` = 2048×2048, `1` = 1024×1024, `2` = 512×512, `3` = 256×256), and a single
+# time point. Pyramid levels let you preview a whole FOV cheaply at low
+# resolution before zooming in to full resolution for training/inference.
 
 # %% [markdown] tags=[]
 # <div class="alert alert-warning">
@@ -277,29 +281,58 @@ dataset = open_ome_zarr(data_path)
 # HINT: look at the HCS Plate format to see what your options are.
 # </div>
 # %% tags=[]
-# Use the field and pyramid_level below to visualize data.
+# Use the field below to visualize data. Pyramid levels are shown side-by-side
+# (0 = full resolution, larger = downsampled previews).
 row = 0
 col = 0
 field = 9  # TODO: Change this to explore data.
 
-pyramid_level = 0
-
 # `channel_names` is the metadata that is stored with data according to the OME-NGFF spec.
 n_channels = len(dataset.channel_names)
 
-image = dataset[f"{row}/{col}/{field}/{pyramid_level}"].numpy()
-print(f"data shape: {image.shape}, FOV: {field}, pyramid level: {pyramid_level}")
+# Per-channel colormaps for the standard fluorescence-microscopy convention:
+# phase as grayscale, nuclei in green, membrane in magenta.
+channel_cmaps = {
+    "Phase3D": Colormap("gray").to_mpl(),
+    "Nucl": Colormap("green").to_mpl(),
+    "Mem": Colormap("magenta").to_mpl(),
+}
+default_cmap = Colormap("gray").to_mpl()
 
-figure, axes = plt.subplots(1, n_channels, figsize=(9, 3))
+# Enumerate the pyramid levels for this FOV via iohub's Position.images().
+# Each level is the same FOV downsampled (2048 -> 1024 -> 512 -> 256 in YX),
+# not a smaller crop of the full-resolution data.
+position = dataset[f"{row}/{col}/{field}"]
+pyramid_levels = [(path, arr) for path, arr in position.images()]
+print(f"FOV: {field}, pyramid levels: {[p for p, _ in pyramid_levels]}")
 
-for i in range(n_channels):
-    channel_image = image[0, i, 0]
-    # Adjust contrast to 0.5th and 99.5th percentile of pixel values.
-    p_low, p_high = np.percentile(channel_image, (0.5, 99.5))
-    channel_image = np.clip(channel_image, p_low, p_high)
-    axes[i].imshow(channel_image, cmap="gray")
-    axes[i].axis("off")
-    axes[i].set_title(dataset.channel_names[i])
+figure, axes = plt.subplots(
+    len(pyramid_levels),
+    n_channels,
+    figsize=(n_channels * 3, len(pyramid_levels) * 3),
+    squeeze=False,
+)
+
+for level_idx, (level_path, level_arr) in enumerate(pyramid_levels):
+    image = np.asarray(level_arr)
+    print(f"  level {level_path}: shape={image.shape}")
+    for ch_idx in range(n_channels):
+        # Display the central z-slice so every level uses the same focal plane.
+        z_index = image.shape[2] // 2
+        channel_image = image[0, ch_idx, z_index]
+        # Adjust contrast to 0.5th and 99.5th percentile of pixel values.
+        p_low, p_high = np.percentile(channel_image, (0.5, 99.5))
+        channel_image = np.clip(channel_image, p_low, p_high)
+        ax = axes[level_idx, ch_idx]
+        ax.imshow(
+            channel_image,
+            cmap=channel_cmaps.get(dataset.channel_names[ch_idx], default_cmap),
+        )
+        ax.axis("off")
+        ax.set_title(
+            f"{dataset.channel_names[ch_idx]} — level {level_path} "
+            f"({channel_image.shape[0]}×{channel_image.shape[1]})"
+        )
 plt.tight_layout()
 
 # %% [markdown] tags=[]
@@ -321,6 +354,34 @@ plt.tight_layout()
 # A `batch` is a dict of the same keys with an extra leading batch dimension, e.g.
 # `batch["source"].shape == (B, 1, 1, Y, X)`. The `training_step` method inside
 # `VSUNet` receives this dict directly — no unpacking required.
+
+# %% [markdown] tags=[]
+# ## A primer on augmentations and patch sizes
+#
+# You pass augmentations to `HCSDataModule` via the `augmentations=[...]`
+# argument. They run on the **CPU**, inside each `DataLoader` worker, per
+# sample, before the batch is collated and moved to the GPU. The chain runs in
+# order, so the *last* transform in the list determines the final patch size
+# the model sees.
+#
+# Two things to keep in mind when designing the chain:
+#
+# 1. **Some augmentations work better on a larger crop than the model's final
+#    input size.** A common pattern is "crop to 384×384, rotate, then
+#    center-crop to 256×256" — that way the rotation's black corners get
+#    cropped out before the model sees the patch. So you'll often want
+#    `RandWeightedCropd` (e.g. 384×384) → spatial / intensity transforms →
+#    `CenterSpatialCropd` (e.g. 256×256) at the end of the chain.
+# 2. **`HCSDataModule` validates the final patch size.** Right before each
+#    training batch hits the model, it checks that the source spatial shape
+#    matches `(z_window_size, *yx_patch_size)`. If it doesn't, you'll get a
+#    `ValueError` telling you to add a spatial crop. Practically: whatever the
+#    last spatial-sizing transform produces must equal `yx_patch_size`.
+#
+# (Advanced: the data module also supports a `gpu_augmentations=[...]`
+# argument that runs per-batch on the GPU after `on_after_batch_transfer`.
+# We don't use it in this exercise — keeping everything CPU-side is simpler
+# and is enough for this dataset.)
 
 # %% [markdown] tags=[]
 # <div class="alert alert-info">
@@ -414,15 +475,25 @@ def log_batch_jupyter(batch):
     fig, axes = plt.subplots(
         batch_size, n_channels, figsize=(n_channels * 2, batch_size * 2)
     )
+    # Per-channel colormaps: phase as grayscale, nuclei in green, membrane in
+    # magenta — matches the standard fluorescence-microscopy convention.
+    phase_cmap = Colormap("gray").to_mpl()
+    nuclei_cmap = Colormap("green").to_mpl()
+    membrane_cmap = Colormap("magenta").to_mpl()
     [N, C, H, W] = batch_phase.shape
     for sample_id in range(batch_size):
-        axes[sample_id, 0].imshow(batch_phase[sample_id, 0])
-        axes[sample_id, 1].imshow(batch_nuclei[sample_id, 0])
-        axes[sample_id, 2].imshow(batch_membrane[sample_id, 0])
+        axes[sample_id, 0].imshow(batch_phase[sample_id, 0], cmap=phase_cmap)
+        axes[sample_id, 1].imshow(batch_nuclei[sample_id, 0], cmap=nuclei_cmap)
+        axes[sample_id, 2].imshow(batch_membrane[sample_id, 0], cmap=membrane_cmap)
 
         for i in range(n_channels):
-            axes[sample_id, i].axis("off")
-            axes[sample_id, i].set_title(dataset.channel_names[i])
+            ax = axes[sample_id, i]
+            # Show only min/max ticks so the H×W dimensions are visible
+            # without cluttering the figure.
+            ax.set_xticks([0, W - 1])
+            ax.set_yticks([0, H - 1])
+            ax.tick_params(axis="both", labelsize=7, length=2, pad=1)
+            ax.set_title(dataset.channel_names[i])
     plt.tight_layout()
     plt.show()
 
@@ -430,7 +501,7 @@ def log_batch_jupyter(batch):
 # %% tags=["task"]
 # Initialize the data module.
 
-BATCH_SIZE = 4
+BATCH_SIZE = 16
 
 # 4 is a perfectly reasonable batch size
 # (batch size does not have to be a power of 2)
@@ -481,7 +552,7 @@ writer.close()
 # ##### SOLUTION ########
 # #######################
 
-BATCH_SIZE = 4
+BATCH_SIZE = 16
 # 4 is a perfectly reasonable batch size
 # (batch size does not have to be a power of 2)
 # See: https://sebastianraschka.com/blog/2022/batch-size-2.html
@@ -567,6 +638,15 @@ log_batch_jupyter(batch)
 # [RandGaussianNoised](https://docs.monai.io/en/stable/transforms.html#randgaussiannoised).
 # You can also inspect any transform in a cell with `RandAffined?`.<br><br>
 # [Compare your choice of augmentations against the pretrained models and config files](https://github.com/mehta-lab/VisCy/releases/download/v0.1.0/VisCy-0.1.0-VS-models.zip).
+#
+# <br><br>
+# <b>Question:</b> Once you run the next cell, notice the black corners
+# in the rotated patches. Where do they come from, and how can you make
+# sure the model never sees them? (Hint: look at the
+# <code>padding_mode</code> kwarg in <code>RandAffined</code>, and compare
+# the patch size you visualize here with <code>yx_patch_size</code>. The
+# last transform in the augmentation chain determines what the model
+# actually receives — what should that transform be?)
 # </div>
 # %% tags=["task"]
 # Here we turn on data augmentation and rerun setup
@@ -605,6 +685,12 @@ augmentations = [
         sigma_z=(0.0, 0.0),
         prob=0.5,
     ),
+    # #######################
+    # ##### TODO  ########
+    # #######################
+    ## TODO: Add a CenterSpatialCropd
+    ## Write code below
+    # #######################
 ]
 
 normalizations = [
@@ -667,6 +753,14 @@ augmentations = [
         sigma_y=(0.25, 0.75),
         sigma_z=(0.0, 0.0),
         prob=0.5,
+    ),
+    # Final center crop down to yx_patch_size. The rotated 384x384 patch has
+    # black corners from RandAffined's zero padding; cropping to the central
+    # 256x256 removes them before the patch reaches the model. Without this
+    # last step HCSDataModule raises a ValueError in on_after_batch_transfer.
+    CenterSpatialCropd(
+        keys=source_channel + target_channel,
+        roi_size=(1, 256, 256),
     ),
 ]
 
@@ -810,9 +904,10 @@ source_channel = ["TODO"]
 target_channel = ["TODO", "TODO"]
 
 # Setup the data module.
-# NOTE: RandWeightedCropd produces 384x384 crops but yx_patch_size=(256,256),
-# so the modular HCSDataModule needs a GPU-side BatchedCenterSpatialCropd to
-# bring patches back to yx_patch_size before reaching the model.
+# NOTE: the `augmentations` chain you build above must end with a
+# CenterSpatialCropd that brings patches down to yx_patch_size. HCSDataModule
+# validates this in on_after_batch_transfer and will raise ValueError if the
+# final source shape doesn't match (z_window_size, *yx_patch_size).
 phase2fluor_2D_data = HCSDataModule(
     data_path,
     source_channel=source_channel,
@@ -824,18 +919,6 @@ phase2fluor_2D_data = HCSDataModule(
     yx_patch_size=YX_PATCH_SIZE,
     augmentations=augmentations,
     normalizations=normalizations,
-    gpu_augmentations=[
-        BatchedCenterSpatialCropd(
-            keys=["source", "target"],
-            roi_size=(1, YX_PATCH_SIZE[0], YX_PATCH_SIZE[1]),
-        )
-    ],
-    val_gpu_augmentations=[
-        BatchedCenterSpatialCropd(
-            keys=["source", "target"],
-            roi_size=(1, YX_PATCH_SIZE[0], YX_PATCH_SIZE[1]),
-        )
-    ],
 )
 phase2fluor_2D_data.setup("fit")
 # fast_dev_run runs a single batch of data through the model to check for errors.
@@ -888,9 +971,9 @@ phase2fluor_model = VSUNet(
 source_channel = ["Phase3D"]
 target_channel = ["Nucl", "Mem"]
 # Setup the data module.
-# NOTE: RandWeightedCropd produces 384x384 crops but yx_patch_size=(256,256),
-# so the modular HCSDataModule needs a GPU-side BatchedCenterSpatialCropd to
-# bring patches back to yx_patch_size before reaching the model.
+# NOTE: the `augmentations` chain above ends with a CenterSpatialCropd that
+# brings patches down to yx_patch_size before the batch reaches the model.
+# HCSDataModule validates this in on_after_batch_transfer.
 phase2fluor_2D_data = HCSDataModule(
     data_path,
     source_channel=source_channel,
@@ -902,18 +985,6 @@ phase2fluor_2D_data = HCSDataModule(
     yx_patch_size=YX_PATCH_SIZE,
     augmentations=augmentations,
     normalizations=normalizations,
-    gpu_augmentations=[
-        BatchedCenterSpatialCropd(
-            keys=["source", "target"],
-            roi_size=(1, YX_PATCH_SIZE[0], YX_PATCH_SIZE[1]),
-        )
-    ],
-    val_gpu_augmentations=[
-        BatchedCenterSpatialCropd(
-            keys=["source", "target"],
-            roi_size=(1, YX_PATCH_SIZE[0], YX_PATCH_SIZE[1]),
-        )
-    ],
 )
 # #######################
 # ##### SOLUTION ########
@@ -967,10 +1038,18 @@ trainer.fit(phase2fluor_model, datamodule=phase2fluor_2D_data)
 # </div>
 
 # %%
-# visualize graph of phase2fluor model as image.
+# Visualize graph of phase2fluor model as image.
+#
+# RandWeightedCropd(num_samples=2) makes train_dataset[i]["source"] a list of
+# 2 crops, so we can't just call .unsqueeze on it. We feed torchview a dummy
+# tensor of the model's expected input shape directly:
+# (B, C, Z, Y, X) = (1, 1, 1, 256, 256).
+dummy_input = torch.zeros(
+    1, 1, 1, YX_PATCH_SIZE[0], YX_PATCH_SIZE[1], dtype=torch.float32
+)
 model_graph_phase2fluor = torchview.draw_graph(
     phase2fluor_model,
-    phase2fluor_2D_data.train_dataset[0]["source"].unsqueeze(dim=0),
+    dummy_input,
     roll=True,
     depth=3,  # adjust depth to zoom in.
     device="cpu",
@@ -1324,8 +1403,19 @@ pretrained_model_ckpt = (
     top_dir / ...
 )  ## Add the path to the "VSCyto2D/epoch=399-step=23200.ckpt"
 
-# TODO: Load the phase2fluor_config just like the model you trained
-phase2fluor_config = dict()  ##
+# TODO: Load the phase2fluor_config just like the model you trained in Task 1.4.
+# HINT: copy the dict you built above verbatim — same in_channels, out_channels,
+# encoder_blocks, dims, decoder_conv_blocks, stem_kernel_size, in_stack_depth.
+phase2fluor_config = dict(
+    in_channels=...,  # TODO: same as Task 1.4
+    out_channels=...,  # TODO: same as Task 1.4
+    encoder_blocks=...,  # TODO: same as Task 1.4
+    dims=...,  # TODO: same as Task 1.4
+    decoder_conv_blocks=...,  # TODO: same as Task 1.4
+    stem_kernel_size=...,  # TODO: same as Task 1.4
+    in_stack_depth=...,  # TODO: same as Task 1.4
+    pretraining=False,
+)
 
 # TODO: Load the checkpoint. Write the architecture name. HINT: look at the previous config.
 pretrained_phase2fluor = VSUNet.load_from_checkpoint(
@@ -1464,8 +1554,10 @@ def cellpose_segmentation(
         "cellprob_threshold": 0.0,
     }
 
-    pred_label, _, _ = cellpose_model.eval(prediction, **cp_nuc_kwargs)
-    target_label, _, _ = cellpose_model.eval(target, **cp_nuc_kwargs)
+    # Batch prediction and target into a single Cellpose call so they share
+    # one GPU forward pass instead of two — roughly halves runtime per call.
+    masks_list, _, _ = cellpose_model.eval([prediction, target], **cp_nuc_kwargs)
+    pred_label, target_label = masks_list
 
     pred_label = pred_label.astype(np.int32)
     target_label = target_label.astype(np.int32)
@@ -2066,18 +2158,16 @@ import torch
 # #######################
 # ##### TODO ########
 # #######################
-# TODO: Load the pretrained fluorescence to phase model
-# HINT: Look for pretrained models in the VisCy repository or use a model checkpoint
-# HINT: The model should take 2 input channels (nuclei + membrane) and output 1 channel (phase)
-# HINT: Use similar architecture as before but with different input/output channels
+# TODO: Load the pretrained fluorescence-to-phase model.
+# HINT: same VSUNet.load_from_checkpoint(...) call you used in Task 2.0 —
+# only the checkpoint path, in_channels and out_channels differ.
+# The checkpoint path is already given as `fluor2phase_model_path` above.
 
-# For now, we'll create a placeholder - replace with actual model loading
 print("Loading pretrained fluorescence-to-phase model...")
 
-# TODO: Replace this with actual model loading code
 fluor2phase_config = dict(
-    in_channels=...,  # Nuclei + Membrane channels
-    out_channels=...,  # Phase channel
+    in_channels=...,  # TODO: how many fluorescence channels go in?
+    out_channels=...,  # TODO: how many label-free channels come out?
     encoder_blocks=[3, 3, 9, 3],
     dims=[96, 192, 384, 768],
     decoder_conv_blocks=2,
@@ -2115,13 +2205,12 @@ sample = next(iter(test_data_fluor2phase.test_dataloader()))
 # #######################
 # ##### TODO ########
 # #######################
-# TODO: Extract the input channels (fluorescence) and target (phase)
-# HINT: Print the keys of the `sample` dictionary
-# HINT: Input should be nuclei and membrane channels concatenated
-# HINT: Target should be the original phase image
+# TODO: Extract the input channels (fluorescence) and target (phase) from `sample`.
+# HINT: HCSDataModule batches are dicts with keys "source" and "target".
+# HINT: Try `print(sample.keys())` and `print(sample["source"].shape)` to inspect.
 
-fluor_input = ...  # TODO: Source
-target_phase = ...  # TODO: Target
+fluor_input = ...  # TODO: sample["source"]
+target_phase = ...  # TODO: sample["target"]
 
 # TODO: Make prediction with the fluorescence to phase model
 # NOTE: The `fluor2phase_model`, returns a tuple. Select the first item with `[0]`
@@ -2330,7 +2419,16 @@ with torch.inference_mode():
     single_pred_nuc = single_pred[0, 0].cpu().numpy()
     single_pred_mem = single_pred[0, 1].cpu().numpy()
 
-# TODO: Define TTA transforms using MONAI as a list of tuples (forward, inverse)
+# TODO: Define TTA transforms as a list of (forward, inverse) tuples.
+# Each entry is a pair of MONAI transforms: one to perturb the input before
+# inference, and its inverse to undo the perturbation on the prediction.
+#
+# Worked example (uncomment to start):
+#   transform_list = [
+#       (Flip(spatial_axis=-1), Flip(spatial_axis=-1)),  # horizontal flip is its own inverse
+#       # TODO: add a vertical flip
+#       # TODO: add a 90-degree rotation (HINT: inverse is Rotate90(k=3) or k=-1)
+#   ]
 ###### YOUR CODE HERE ######
 transform_list = [("TODO", "TODO")]
 
@@ -2378,16 +2476,20 @@ tta_pred_nuc = ...
 tta_pred_mem = ...
 
 # %% tags=["task"]
-# TODO: Compare TTA results with single prediction
-# Calculate metrics (SSIM, Pearson correlation) for both approaches. Do not forget to normalize the data range to 0-1.
-
-# TODO Normalize data range to 0-1
-###### YOUR CODE HERE ######
-
-# TODO Calculate metrics
-###### YOUR CODE HERE ######
-
-# TODO # TTA prediction metrics
+# TODO: Compare TTA results with the single prediction.
+# Do the same thing as Task 2.4 here, but twice — once for `single_pred_*` and
+# once for `tta_pred_*` — so you can compare them.
+#
+# For each of (single, TTA) and each of (nucleus, membrane):
+#   1. Rescale predicted and target arrays to the [0, 1] range
+#      (HINT: skimage.exposure.rescale_intensity with out_range=(0, 1))
+#   2. Compute SSIM             (HINT: skimage.metrics.structural_similarity)
+#   3. Compute Pearson r        (HINT: np.corrcoef(...)[0, 1])
+#
+# Store the eight scalars as:
+#   ssim_nuc_single, ssim_mem_single, pearson_nuc_single, pearson_mem_single
+#   ssim_nuc_tta,    ssim_mem_tta,    pearson_nuc_tta,    pearson_mem_tta
+# so the print block below picks them up.
 ###### YOUR CODE HERE ######
 
 # Print comparison

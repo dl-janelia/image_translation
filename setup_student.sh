@@ -84,9 +84,12 @@ else
 fi
 uv pip install --python "$PY" \
     cellpose \
+    cmap \
     torchview \
     microssim \
     scikit-learn \
+    "torchmetrics[detection]" \
+    faster-coco-eval \
     jupyter \
     ipykernel \
     ipywidgets \
