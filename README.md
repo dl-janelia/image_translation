@@ -26,14 +26,10 @@ This is an example of an image translation task. We will apply spatial and inten
 - Compare the performance of the trained model and a pre-trained model.
 - Evaluate the model using pixel-level and instance-level metrics.
 
-Checkout [VisCy](https://github.com/mehta-lab/VisCy) and the
-[cytoland](https://github.com/mehta-lab/VisCy/tree/main/applications/cytoland)
-application — our deep learning pipeline for training and deploying computer
-vision models for image-based phenotyping, including the robust virtual
-staining of landmark organelles. VisCy exploits recent advances in data and
-metadata formats ([OME-zarr](https://www.nature.com/articles/s41592-021-01326-w))
-and DL frameworks ([PyTorch Lightning](https://lightning.ai/) and
-[MONAI](https://monai.io/)).
+Checkout [VisCy](https://github.com/mehta-lab/VisCy) and the [cytoland](https://github.com/mehta-lab/VisCy/tree/main/applications/cytoland)
+application — our deep learning pipeline for training and deploying computer vision models for image-based phenotyping, including the robust virtual
+staining of landmark organelles. VisCy exploits recent advances in data and metadata formats ([OME-zarr](https://www.nature.com/articles/s41592-021-01326-w))
+and DL frameworks ([PyTorch Lightning](https://lightning.ai/) and [MONAI](https://monai.io/)).
 
 ## Setup — Students
 
