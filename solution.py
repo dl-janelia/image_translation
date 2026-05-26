@@ -130,7 +130,6 @@ from cmap import Colormap
 from iohub import open_ome_zarr
 from iohub.reader import print_info
 from lightning.pytorch import seed_everything
-from lightning.pytorch.callbacks import TQDMProgressBar
 from lightning.pytorch.loggers import TensorBoardLogger
 
 from skimage.metrics import structural_similarity
@@ -1210,7 +1209,10 @@ def min_max_scale(image: ArrayLike) -> ArrayLike:
     "Rescale an image to the [0, 1] range (used before SSIM)."
     min_val = image.min()
     max_val = image.max()
-    return (image - min_val) / (max_val - min_val)
+    dynamic_range = max_val - min_val
+    if dynamic_range <= np.finfo(float).eps:
+        return np.zeros_like(image, dtype=float)
+    return (image - min_val) / dynamic_range
 
 
 for i, sample in enumerate(
