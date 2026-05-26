@@ -56,8 +56,15 @@ fi
 echo "Using uv: $(uv --version)"
 
 # --- 2. Create a venv under this exercise folder ---------------------------
+# Skip `uv venv` if the venv already exists. Future uv versions will require
+# `--clear` to replace an existing venv; reusing it is the right default
+# (re-running setup shouldn't wipe a student's environment).
 VENV_DIR="$SCRIPT_DIR/.venv"
-uv venv --python "$PYTHON_VERSION" "$VENV_DIR"
+if [[ ! -d "$VENV_DIR" ]]; then
+    uv venv --python "$PYTHON_VERSION" "$VENV_DIR"
+else
+    echo "Reusing existing venv at $VENV_DIR"
+fi
 PY="$VENV_DIR/bin/python"
 
 # --- 3. Install all dependencies (declared in pyproject.toml) ---------------
