@@ -70,20 +70,20 @@ def log_batch_tensorboard(batch, batchno, writer, card_name):
     batch_membrane = batch["target"][:, 1, 0, :, :].unsqueeze(1)
     batch_nuclei = batch["target"][:, 0, 0, :, :].unsqueeze(1)
 
-    def _normalize_for_display(x: torch.Tensor) -> torch.Tensor:
-        p1 = torch.quantile(x, 0.001)
-        p99 = torch.quantile(x, 0.999)
-        scale = torch.clamp(p99 - p1, min=torch.finfo(x.dtype).eps)
-        return torch.clamp((x - p1) / scale, 0, 1)
+    # Per-channel percentile contrast stretch for display. Use np.percentile
+    # rather than torch.quantile because the latter has a hard 16M-element
+    # input limit; a full batch easily exceeds that for 256x256 patches.
+    p1, p99 = np.percentile(batch_membrane, (0.1, 99.9))
+    batch_membrane = np.clip((batch_membrane - p1) / (p99 - p1), 0, 1)
 
-    batch_membrane = _normalize_for_display(batch_membrane)
-    batch_nuclei = _normalize_for_display(batch_nuclei)
-    batch_phase = _normalize_for_display(batch_phase)
+    p1, p99 = np.percentile(batch_nuclei, (0.1, 99.9))
+    batch_nuclei = np.clip((batch_nuclei - p1) / (p99 - p1), 0, 1)
+
+    p1, p99 = np.percentile(batch_phase, (0.1, 99.9))
+    batch_phase = np.clip((batch_phase - p1) / (p99 - p1), 0, 1)
 
     [N, C, H, W] = batch_phase.shape
-    interleaved_images = torch.zeros(
-        (3 * N, C, H, W), dtype=batch_phase.dtype, device=batch_phase.device
-    )
+    interleaved_images = torch.zeros((3 * N, C, H, W), dtype=batch_phase.dtype)
     interleaved_images[0::3, :] = batch_phase
     interleaved_images[1::3, :] = batch_nuclei
     interleaved_images[2::3, :] = batch_membrane
