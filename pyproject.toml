@@ -38,6 +38,10 @@ dependencies = [
     "jupytext",
     "nbformat",
     "nbconvert",
+    # tensorboard's default.py does `import pkg_resources` (from setuptools).
+    # Python 3.12 conda envs don't ship setuptools by default anymore, so
+    # we add it explicitly.
+    "setuptools",
 ]
 
 [tool.uv]
