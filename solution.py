@@ -125,7 +125,6 @@ import numpy as np
 import pandas as pd
 import torch
 import torchview
-import torchvision
 from cellpose import models
 from cmap import Colormap
 from iohub import open_ome_zarr
@@ -202,28 +201,22 @@ if not data_path.exists():
 
 
 # %%  tags=[]
-# Imports and paths
-# Function to find an available port
-def find_free_port():
-    import socket
-
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("", 0))
-        return s.getsockname()[1]
-
-
-# Launch TensorBoard on the browser
-def launch_tensorboard(log_dir):
-    import subprocess
-
-    port = find_free_port()
-    tensorboard_cmd = f"tensorboard --logdir={log_dir} --port={port}"
-    process = subprocess.Popen(tensorboard_cmd, shell=True)
-    print(
-        f"TensorBoard started at http://localhost:{port}. \n"
-        "If you are using VSCode remote session, forward the port using the PORTS tab next to TERMINAL."
-    )
-    return process
+# Visualization and TensorBoard helpers (live in utils.py to keep this
+# notebook focused on the machine learning content). Open utils.py if you
+# want to see how each helper renders its inputs.
+from utils import (
+    BOP_BLUE,
+    BOP_ORANGE,
+    GREEN,
+    MAGENTA,
+    clip_highlight,
+    clip_p,
+    composite_nuc_mem,
+    launch_tensorboard,
+    log_batch_jupyter,
+    log_batch_tensorboard,
+    process_image,
+)
 
 
 # Launch tensorboard and click on the link to view the logs.
@@ -397,106 +390,6 @@ plt.tight_layout()
 # </div>
 
 
-# %%
-# Define a function to write a batch to tensorboard log.
-def log_batch_tensorboard(batch, batchno, writer, card_name):
-    """
-    Logs a batch of images to TensorBoard.
-
-    Args:
-        batch (dict): A dictionary containing the batch of images to be logged.
-        writer (SummaryWriter): A TensorBoard SummaryWriter object.
-        card_name (str): The name of the card to be displayed in TensorBoard.
-
-    Returns:
-        None
-    """
-    batch_phase = batch["source"][:, :, 0, :, :]  # batch_size x z_size x Y x X tensor.
-    batch_membrane = batch["target"][:, 1, 0, :, :].unsqueeze(
-        1
-    )  # batch_size x 1 x Y x X tensor.
-    batch_nuclei = batch["target"][:, 0, 0, :, :].unsqueeze(
-        1
-    )  # batch_size x 1 x Y x X tensor.
-
-    p1, p99 = np.percentile(batch_membrane, (0.1, 99.9))
-    batch_membrane = np.clip((batch_membrane - p1) / (p99 - p1), 0, 1)
-
-    p1, p99 = np.percentile(batch_nuclei, (0.1, 99.9))
-    batch_nuclei = np.clip((batch_nuclei - p1) / (p99 - p1), 0, 1)
-
-    p1, p99 = np.percentile(batch_phase, (0.1, 99.9))
-    batch_phase = np.clip((batch_phase - p1) / (p99 - p1), 0, 1)
-
-    [N, C, H, W] = batch_phase.shape
-    interleaved_images = torch.zeros((3 * N, C, H, W), dtype=batch_phase.dtype)
-    interleaved_images[0::3, :] = batch_phase
-    interleaved_images[1::3, :] = batch_nuclei
-    interleaved_images[2::3, :] = batch_membrane
-
-    grid = torchvision.utils.make_grid(interleaved_images, nrow=3)
-
-    # add the grid to tensorboard
-    writer.add_image(card_name, grid, batchno)
-
-
-# Define a function to visualize a batch on jupyter, in case tensorboard is finicky
-def log_batch_jupyter(batch):
-    """
-    Logs a batch of images on jupyter using ipywidget.
-
-    Args:
-        batch (dict): A dictionary containing the batch of images to be logged.
-
-    Returns:
-        None
-    """
-    batch_phase = batch["source"][:, :, 0, :, :]  # batch_size x z_size x Y x X tensor.
-    batch_size = batch_phase.shape[0]
-    batch_membrane = batch["target"][:, 1, 0, :, :].unsqueeze(
-        1
-    )  # batch_size x 1 x Y x X tensor.
-    batch_nuclei = batch["target"][:, 0, 0, :, :].unsqueeze(
-        1
-    )  # batch_size x 1 x Y x X tensor.
-
-    p1, p99 = np.percentile(batch_membrane, (0.1, 99.9))
-    batch_membrane = np.clip((batch_membrane - p1) / (p99 - p1), 0, 1)
-
-    p1, p99 = np.percentile(batch_nuclei, (0.1, 99.9))
-    batch_nuclei = np.clip((batch_nuclei - p1) / (p99 - p1), 0, 1)
-
-    p1, p99 = np.percentile(batch_phase, (0.1, 99.9))
-    batch_phase = np.clip((batch_phase - p1) / (p99 - p1), 0, 1)
-
-    n_channels = batch["target"].shape[1] + batch["source"].shape[1]
-    plt.figure()
-    fig, axes = plt.subplots(
-        batch_size, n_channels, figsize=(n_channels * 2, batch_size * 2)
-    )
-    # Per-channel colormaps: phase as grayscale, nuclei in green, membrane in
-    # magenta — matches the standard fluorescence-microscopy convention.
-    phase_cmap = Colormap("gray").to_mpl()
-    nuclei_cmap = Colormap("green").to_mpl()
-    membrane_cmap = Colormap("magenta").to_mpl()
-    [N, C, H, W] = batch_phase.shape
-    for sample_id in range(batch_size):
-        axes[sample_id, 0].imshow(batch_phase[sample_id, 0], cmap=phase_cmap)
-        axes[sample_id, 1].imshow(batch_nuclei[sample_id, 0], cmap=nuclei_cmap)
-        axes[sample_id, 2].imshow(batch_membrane[sample_id, 0], cmap=membrane_cmap)
-
-        for i in range(n_channels):
-            ax = axes[sample_id, i]
-            # Show only min/max ticks so the H×W dimensions are visible
-            # without cluttering the figure.
-            ax.set_xticks([0, W - 1])
-            ax.set_yticks([0, H - 1])
-            ax.tick_params(axis="both", labelsize=7, length=2, pad=1)
-            ax.set_title(dataset.channel_names[i])
-    plt.tight_layout()
-    plt.show()
-
-
 # %% tags=["task"]
 # Initialize the data module.
 
@@ -601,7 +494,7 @@ writer.close()
 # If your tensorboard is causing issues, you can visualize directly on Jupyter /VSCode
 # %%
 # Visualize in Jupyter
-log_batch_jupyter(batch)
+log_batch_jupyter(batch, dataset.channel_names)
 
 # %% [markdown] tags=[]
 # <div class="alert alert-warning">
@@ -803,7 +696,7 @@ writer.close()
 # Visualize directly on Jupyter
 
 # %%
-log_batch_jupyter(augmented_batch)
+log_batch_jupyter(augmented_batch, dataset.channel_names)
 
 # %% [markdown] tags=[]
 # ## Train a 2D U-Net model to predict nuclei and membrane from phase.
@@ -1361,12 +1254,6 @@ test_metrics.boxplot(
 
 
 # %%
-# Adjust the image to the 0.5-99.5 percentile range.
-def process_image(image):
-    p_low, p_high = np.percentile(image, (0.5, 99.5))
-    return np.clip(image, p_low, p_high)
-
-
 # Plot the predicted image vs target image.
 channel_titles = [
     "Phase",
@@ -2769,8 +2656,6 @@ Script to visualize the encoder feature maps of a trained model.
 Using PCA to visualize feature maps is inspired by
 https://doi.org/10.48550/arXiv.2304.07193 (Oquab et al., 2023).
 """
-from typing import NamedTuple  # noqa: E402
-
 from monai.networks.layers import GaussianFilter  # noqa: E402
 from skimage.exposure import rescale_intensity  # noqa: E402
 from sklearn.decomposition import PCA  # noqa: E402
@@ -2907,42 +2792,10 @@ with torch.inference_mode():
     prediction = model.model.head(feat).detach().cpu().numpy()
 
 
-# Defining the colors for plotting
-class Color(NamedTuple):
-    r: float
-    g: float
-    b: float
-
-
-# Defining the colors for plottting the PCA
-BOP_ORANGE = Color(0.972549, 0.6784314, 0.1254902)
-BOP_BLUE = Color(BOP_ORANGE.b, BOP_ORANGE.g, BOP_ORANGE.r)
-GREEN = Color(0.0, 1.0, 0.0)
-MAGENTA = Color(1.0, 0.0, 1.0)
-
-
-# Defining the functions to rescale the image and composite the nuclear and membrane images
-def rescale_clip(image: torch.Tensor) -> np.ndarray:
-    return rescale_intensity(image, out_range=(0, 1))[..., None].repeat(3, axis=-1)
-
-
-def composite_nuc_mem(
-    image: torch.Tensor, nuc_color: Color, mem_color: Color
-) -> np.ndarray:
-    c_nuc = rescale_clip(image[0]) * nuc_color
-    c_mem = rescale_clip(image[1]) * mem_color
-    return rescale_intensity(c_nuc + c_mem, out_range=(0, 1))
-
-
-def clip_p(image: np.ndarray) -> np.ndarray:
-    return rescale_intensity(image.clip(*np.percentile(image, [1, 99])))
-
-
-def clip_highlight(image: np.ndarray) -> np.ndarray:
-    return rescale_intensity(image.clip(0, np.percentile(image, 99.5)))
-
-
 # Plot the PCA to RGB of the feature maps
+# Helpers (Color, BOP_ORANGE/BOP_BLUE/GREEN/MAGENTA, composite_nuc_mem,
+# clip_p, clip_highlight) are imported from utils.py at the top of the
+# notebook.
 f, ax = plt.subplots(10, 1, figsize=(5, 25))
 n_components = 4
 ax[0].imshow(phase_img[0, 0, 0], cmap="gray")
