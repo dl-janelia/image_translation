@@ -1,15 +1,11 @@
 #!/usr/bin/env bash
 # Regenerate exercise.ipynb and solution.ipynb from solution.py.
 #
-# Uses the project venv (./.venv) if it exists; otherwise falls back to
-# whatever jupytext/jupyter are on $PATH (matches the GitHub Actions
-# build-notebooks workflow).
+# Picks the first jupytext / jupyter on $PATH. Conda users:
+# `conda activate 06_image_translation` first. The GitHub Actions
+# build-notebooks workflow installs jupytext directly with pip, so plain
+# $PATH is fine there too.
 set -euo pipefail
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-if [[ -x "$SCRIPT_DIR/.venv/bin/jupytext" ]]; then
-    export PATH="$SCRIPT_DIR/.venv/bin:$PATH"
-fi
 
 # "cell_metadata_filter": "all" preserves cell tags including our solution tags
 jupytext --to ipynb --update-metadata '{"jupytext":{"cell_metadata_filter":"all"}}' --update solution.py

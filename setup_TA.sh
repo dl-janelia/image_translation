@@ -84,9 +84,16 @@ echo "================================================================"
 if [[ "$DO_STAGE" == "true" ]]; then
     echo
     echo "### [1/3] Staging data + checkpoints into $DATA_ROOT ..."
-    echo "    (typically 20-40 min on first run; skips files already present)"
+    echo "    First run: 20-40 min. Re-runs: wget -m issues per-file HEAD"
+    echo "    requests against the server. No bytes transferred for files"
+    echo "    that match the server's mtime — but the OME-Zarr walks take"
+    echo "    a few minutes of HEAD chatter. This is by design: if a"
+    echo "    previous download was interrupted, wget -m fills in only the"
+    echo "    chunks that are missing or stale."
 
-    mkdir -p "$DATA_ROOT/training" "$DATA_ROOT/test" "$DATA_ROOT/pretrained_models"
+    mkdir -p "$DATA_ROOT/training" "$DATA_ROOT/test" \
+             "$DATA_ROOT/pretrained_models" \
+             "$DATA_ROOT/pretrained_models/DLCourse"
 
     cd "$DATA_ROOT/training"
     wget -m -np -nH --cut-dirs=6 -R "index.html*" "https://public.czbiohub.org/comp.micro/viscy/VS_datasets/VSCyto2D/training/zarrv3/a549_hoechst_cellmask_train_val.zarr/"
@@ -99,7 +106,6 @@ if [[ "$DO_STAGE" == "true" ]]; then
     # Part 2.5 reverse model (fluorescence -> phase). Hosted under the
     # dl_at_janelia/ tree because it's a DL@Janelia course model, not a
     # general-purpose VisCy release.
-    mkdir -p "$DATA_ROOT/pretrained_models/DLCourse"
     cd "$DATA_ROOT/pretrained_models/DLCourse"
     wget -m -np -nH --cut-dirs=4 -R "index.html*" "https://public.czbiohub.org/comp.micro/dl_at_janelia/DLCourse/pretrained_models/fluor2phase_step668.ckpt"
 
@@ -131,22 +137,25 @@ fi
 # -----------------------------------------------------------------------------
 # Phase 2: INSTALL — validate pyproject.toml resolves cleanly
 # -----------------------------------------------------------------------------
-# We run setup_student.sh inside a throwaway directory (TA_VALIDATE_DIR) so
-# we don't disturb the TA's own venv or anyone's working copy. We point it at
-# $DATA_ROOT so it doesn't try to re-download the data (we just staged it).
+# Runs setup_student.sh end-to-end against a throwaway conda env named
+# "$ENV_NAME-validate" so we don't disturb the TA's own working env. The
+# script downloads no data because $DATA_ROOT is already populated by --stage.
+ENV_NAME="${ENV_NAME:-06_image_translation}"
+VALIDATE_ENV_NAME="${VALIDATE_ENV_NAME:-${ENV_NAME}-validate}"
 if [[ "$DO_INSTALL" == "true" ]]; then
     echo
-    echo "### [2/3] Validating install in a throwaway copy ..."
-    TA_VALIDATE_DIR="${TA_VALIDATE_DIR:-$SCRIPT_DIR/.ta_validate}"
-    rm -rf "$TA_VALIDATE_DIR"
-    mkdir -p "$TA_VALIDATE_DIR"
-    cp "$SCRIPT_DIR/pyproject.toml" "$SCRIPT_DIR/setup_student.sh" "$TA_VALIDATE_DIR/"
-    (
-        cd "$TA_VALIDATE_DIR"
-        DATA_ROOT="$DATA_ROOT" bash setup_student.sh
-    )
-    echo "    [2/3] OK — pyproject.toml + setup_student.sh produce a working venv."
-    echo "    (validation venv left at $TA_VALIDATE_DIR/.venv — delete when done)"
+    echo "### [2/3] Validating install in a throwaway conda env ($VALIDATE_ENV_NAME) ..."
+    if ! command -v conda >/dev/null 2>&1; then
+        echo "    conda not on PATH; cannot validate install." >&2
+        exit 1
+    fi
+    # Wipe any prior validation env so we always test a clean install.
+    conda env remove -n "$VALIDATE_ENV_NAME" -y >/dev/null 2>&1 || true
+    ENV_NAME="$VALIDATE_ENV_NAME" DATA_ROOT="$DATA_ROOT" \
+        bash "$SCRIPT_DIR/setup_student.sh"
+    echo "    [2/3] OK — pyproject.toml + setup_student.sh produce a working env."
+    echo "    (Throwaway env left as '$VALIDATE_ENV_NAME'; remove with:"
+    echo "       conda env remove -n $VALIDATE_ENV_NAME -y)"
 fi
 
 # -----------------------------------------------------------------------------
@@ -159,12 +168,17 @@ fi
 if [[ "$DO_SMOKE" == "true" ]]; then
     echo
     echo "### [3/3] Smoke-testing solution.py on GPU ..."
-    VENV_DIR="${TA_VALIDATE_DIR:-$SCRIPT_DIR/.ta_validate}/.venv"
-    if [[ ! -x "$VENV_DIR/bin/python" ]]; then
-        VENV_DIR="$SCRIPT_DIR/.venv"
+    if ! command -v conda >/dev/null 2>&1; then
+        echo "    conda not on PATH; cannot run smoke test." >&2
+        exit 1
     fi
-    if [[ ! -x "$VENV_DIR/bin/python" ]]; then
-        echo "    No usable venv found. Run --install first (or --all)." >&2
+    # Prefer the validate env if we just built one, else the regular env.
+    SMOKE_ENV="$ENV_NAME"
+    if conda env list | awk '{print $1}' | grep -qx "$VALIDATE_ENV_NAME"; then
+        SMOKE_ENV="$VALIDATE_ENV_NAME"
+    fi
+    if ! conda env list | awk '{print $1}' | grep -qx "$SMOKE_ENV"; then
+        echo "    No usable conda env '$SMOKE_ENV' found. Run --install first (or --all)." >&2
         exit 1
     fi
     SMOKE_SCRIPT="$SCRIPT_DIR/scripts/ta_smoke_test.py"
@@ -173,7 +187,8 @@ if [[ "$DO_SMOKE" == "true" ]]; then
         echo "    (this should be committed alongside setup_TA.sh)" >&2
         exit 1
     fi
-    DATA_ROOT="$DATA_ROOT" "$VENV_DIR/bin/python" "$SMOKE_SCRIPT"
+    DATA_ROOT="$DATA_ROOT" conda run -n "$SMOKE_ENV" --no-capture-output \
+        python "$SMOKE_SCRIPT"
     echo "    [3/3] OK — solution.py runs end-to-end on this node."
 fi
 

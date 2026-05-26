@@ -43,16 +43,20 @@ cd 06_image_translation
 bash setup_student.sh
 ```
 
-The script creates `./.venv`, installs [pyproject.toml](pyproject.toml),
-registers the `06_image_translation` Jupyter kernel, and verifies the data
-your TA pre-staged at `$DATA_ROOT`.
+The script creates the `06_image_translation` conda env, installs
+[pyproject.toml](pyproject.toml) into it, registers the matching Jupyter
+kernel, and verifies the data your TA pre-staged at `$DATA_ROOT`.
+Requires `conda` on your PATH; install
+[Miniconda](https://docs.conda.io/en/latest/miniconda.html) first if you
+don't have it.
 
 ## Run the exercise
 
-Launch Jupyter Lab:
+Activate the env and launch Jupyter Lab:
 
 ```bash
-./.venv/bin/jupyter lab
+conda activate 06_image_translation
+jupyter lab
 ```
 
 Open **`exercise.ipynb`**, pick the **Python (06_image_translation)**
@@ -85,7 +89,8 @@ bash prepare-exercise.sh
 Re-register the Jupyter kernel if it disappears from the dropdown:
 
 ```bash
-./.venv/bin/python -m ipykernel install --user \
+conda activate 06_image_translation
+python -m ipykernel install --user \
     --name 06_image_translation \
     --display-name "Python (06_image_translation)"
 ```
