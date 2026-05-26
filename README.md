@@ -38,11 +38,16 @@ and DL frameworks ([PyTorch Lightning](https://lightning.ai/) and
 
 ## Setup — Students
 
-Clone this repository and run the setup script from the repo root:
+This exercise is included as a submodule of the main
+[`dl-janelia/DL-MBL-2025`](https://github.com/dl-janelia/DL-MBL-2025)
+course repo. From your clone of the course repo:
 
 ```bash
-git clone https://github.com/dl-janelia/image_translation.git
-cd image_translation
+# Fetch the latest version of every exercise:
+git submodule update --init --recursive --remote
+
+# Then enter this exercise and run setup:
+cd 06_image_translation
 bash setup_student.sh
 ```
 
