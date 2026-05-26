@@ -815,7 +815,11 @@ log_batch_jupyter(augmented_batch)
 # separate:
 #
 # 1. **The network** — a UNeXt2 architecture, configured through `model_config`.
-# 2. **The loss** — passed in as `loss_function=MixedLoss(...)`.
+# 2. **The loss** — passed in as `loss_function=MixedLoss(...)`. VisCy's
+#    `MixedLoss` is a single class with knobs for L1, L2/MSE, and MS-DSSIM.
+#    For this exercise we'll train with pure MSE (`l2_alpha=1.0`); the
+#    pretrained checkpoint we compare against in Part 2 was trained with
+#    a mix of L1 + MS-DSSIM.
 # 3. **The per-batch logic** — `training_step` and `validation_step` methods that
 #    take one `{"source", "target"}` batch, run the forward pass, compute the
 #    loss, and return it. You don't see these methods here because they're
@@ -836,10 +840,15 @@ log_batch_jupyter(augmented_batch)
 # - `stem_kernel_size=(1, 2, 2)` and `in_stack_depth=1` — this is a 2D model,
 #   so we use 1 z-slice and a stem that doesn't convolve across z.
 #
-# **Loss** — `MixedLoss(l1_alpha=0.5, ms_dssim_alpha=0.5)` combines per-pixel
-# L1 (penalizes intensity error) with multi-scale SSIM (penalizes structural
-# error — edges, texture, shape). L1 alone produces blurry outputs; MS-SSIM
-# alone ignores absolute intensity. The 0.5/0.5 mix balances both.
+# **Loss** — `MixedLoss(l2_alpha=1.0)` is plain MSE (mean squared error) on
+# the predicted vs target fluorescence — the most familiar regression loss,
+# and a good baseline for image translation.
+#
+# Once your model trains, try swapping the loss with
+# `MixedLoss(l1_alpha=0.5, ms_dssim_alpha=0.5)` (per-pixel L1 + multi-scale
+# SSIM). L1 + MS-DSSIM is what the pretrained VSCyto2D checkpoint we
+# compare against in Part 2 was trained with, and produces visibly sharper
+# membrane edges than MSE alone.
 #
 # **Schedule** — `schedule="WarmupCosine"`, `lr=6e-4`: the learning rate ramps
 # up from 0 over the first few epochs (warmup), then follows a cosine decay
@@ -889,7 +898,7 @@ phase2fluor_config = dict(
 phase2fluor_model = VSUNet(
     architecture=...,  # TODO: 2D UNeXt2 architecture
     model_config=phase2fluor_config.copy(),
-    loss_function=MixedLoss(l1_alpha=0.5, l2_alpha=0.0, ms_dssim_alpha=0.5),
+    loss_function=MixedLoss(l1_alpha=0.0, l2_alpha=1.0, ms_dssim_alpha=0.0),
     schedule="WarmupCosine",
     lr=6e-4,
     log_batches_per_epoch=5,  # Number of samples from each batch to log to tensorboard.
@@ -956,7 +965,7 @@ phase2fluor_config = dict(
 phase2fluor_model = VSUNet(
     architecture="UNeXt2_2D",  # 2D UNeXt2 architecture
     model_config=phase2fluor_config.copy(),
-    loss_function=MixedLoss(l1_alpha=0.5, l2_alpha=0.0, ms_dssim_alpha=0.5),
+    loss_function=MixedLoss(l1_alpha=0.0, l2_alpha=1.0, ms_dssim_alpha=0.0),
     schedule="WarmupCosine",
     lr=6e-4,
     log_batches_per_epoch=5,  # Number of samples from each batch to log to tensorboard.
@@ -1173,12 +1182,8 @@ phase2fluor_model.to(device)
 
 # </div>
 
-# %% [markdown] tags=[]
-# ```
-# #######################
-# ##### Solution ########
-# #######################
-# ```
+# %% [markdown] tags=["solution"]
+# **Solution — metric definitions:**
 #
 # - **Pearson Correlation**: linear correlation between predicted and target
 #   intensities across all pixels, in `[-1, 1]`. `1` means the prediction is a
