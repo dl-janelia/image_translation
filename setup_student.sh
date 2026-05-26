@@ -67,14 +67,14 @@ else
 fi
 PY="$VENV_DIR/bin/python"
 
-# --- 3. Install all dependencies (declared in pyproject.toml) ---------------
-# pyproject.toml is the single source of truth for what gets installed.
+# --- 3. Install all dependencies from the project metadata ------------------
+# Sync from pyproject.toml and uv.lock so installs are reproducible.
 # Bump the cytoland git ref in there to upgrade VisCy.
-echo "Installing dependencies from pyproject.toml ..."
-uv pip install --python "$PY" -r "$SCRIPT_DIR/pyproject.toml"
+echo "Syncing dependencies from pyproject.toml and uv.lock ..."
+uv sync --project "$SCRIPT_DIR" --python "$PY"
 
 # Workspace override: if this exercise is checked out inside the VisCy
-# monorepo, swap the git-installed cytoland for the local editable copy so
+# monorepo, swap the synced cytoland for the local editable copy so
 # changes to the upstream source picked up live.
 if [[ "$INSTALL_MODE" == "workspace" ]]; then
     echo "Workspace mode: replacing cytoland with editable install from $MONOREPO_ROOT ..."
