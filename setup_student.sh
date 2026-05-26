@@ -114,6 +114,22 @@ echo "Registered Jupyter kernel: $KERNEL_NAME"
 
 # --- 4. Download data + pretrained checkpoints (skip if already present) ----
 DATA_ROOT="${DATA_ROOT:-$HOME/data/$KERNEL_NAME}"
+
+# Shared-mount fast path: on the course AWS instances, TAs pre-stage the
+# data at /mnt/efs/dlmbl/data/06_image_translation. If the user is using
+# the default DATA_ROOT, that mount exists, and they haven't already got
+# their own $DATA_ROOT, symlink $HOME/data/06_image_translation -> the
+# shared mount instead of re-downloading 14 GB per student.
+# Set DATA_ROOT explicitly to opt out (e.g. on a non-AWS laptop).
+SHARED_DATA="/mnt/efs/dlmbl/data/$KERNEL_NAME"
+if [[ "$DATA_ROOT" == "$HOME/data/$KERNEL_NAME" ]] \
+        && [[ -d "$SHARED_DATA" ]] \
+        && [[ ! -e "$DATA_ROOT" ]]; then
+    echo "Found shared data at $SHARED_DATA — symlinking $DATA_ROOT to it."
+    mkdir -p "$(dirname "$DATA_ROOT")"
+    ln -s "$SHARED_DATA" "$DATA_ROOT"
+fi
+
 TRAINING_ZARR="$DATA_ROOT/training/a549_hoechst_cellmask_train_val.zarr"
 TEST_ZARR="$DATA_ROOT/test/a549_hoechst_cellmask_test.zarr"
 CHECKPOINT="$DATA_ROOT/pretrained_models/VSCyto2D/epoch=399-step=23200.ckpt"
