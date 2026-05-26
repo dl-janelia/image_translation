@@ -31,100 +31,58 @@ application — our deep learning pipeline for training and deploying computer v
 staining of landmark organelles. VisCy exploits recent advances in data and metadata formats ([OME-zarr](https://www.nature.com/articles/s41592-021-01326-w))
 and DL frameworks ([PyTorch Lightning](https://lightning.ai/) and [MONAI](https://monai.io/)).
 
-## Setup — Students
+## Setup
 
-This exercise is included as a submodule of the main
-[dl-janelia/DL-MBL-2025](https://github.com/dl-janelia/DL-MBL-2025)
-course repo. From your clone of the course repo:
+This exercise lives as a submodule of
+[dl-janelia/DL-MBL-2025](https://github.com/dl-janelia/DL-MBL-2025).
+From your clone of the course repo:
 
 ```bash
-# Fetch the latest version of every exercise:
 git submodule update --init --recursive --remote
-
-# Then enter this exercise and run setup:
 cd 06_image_translation
 bash setup_student.sh
 ```
 
-That's it — the script creates a `./.venv`, installs everything in
-[pyproject.toml](pyproject.toml), registers a Jupyter kernel called
-`06_image_translation`, and downloads the data (about 14 GB) into
-`$DATA_ROOT` (default `$HOME/data/06_image_translation/`).
+The script creates `./.venv`, installs [pyproject.toml](pyproject.toml),
+registers the `06_image_translation` Jupyter kernel, and verifies the data
+your TA pre-staged at `$DATA_ROOT`.
 
-If your TA pre-staged the data on a shared mount, point `DATA_ROOT` at it to
-skip the download:
+## Run the exercise
 
-```bash
-DATA_ROOT=/path/to/shared/image_translation bash setup_student.sh
-```
-
-Everything is self-contained inside this folder.
-
-## Setup — TAs
-
-Pre-staging data, validating the install, and smoke-testing the notebook
-on a course node are all handled by [setup_TA.sh](setup_TA.sh). See its
-header comment for usage:
+Launch Jupyter Lab:
 
 ```bash
-bash setup_TA.sh --help
+./.venv/bin/jupyter lab
 ```
 
-Typical pre-course workflow on a shared mount:
+Open **`exercise.ipynb`**, pick the **Python (06_image_translation)**
+kernel, and run cells with `Shift+Enter`. Peek at **`solution.ipynb`**
+when you get stuck.
+
+VSCode users can open `exercise.ipynb` directly, or run `solution.py`
+block-by-block in
+[cell mode](https://code.visualstudio.com/docs/python/jupyter-support-py).
+
+---
+
+## For TAs
+
+Stage data, validate the install, and smoke-test the notebook with one
+command:
 
 ```bash
 DATA_ROOT=/path/to/shared/image_translation bash setup_TA.sh --all
 ```
 
-Then tell students to run:
+See `bash setup_TA.sh --help` for individual phases.
 
-```bash
-DATA_ROOT=/path/to/shared/image_translation bash setup_student.sh
-```
-
-## Run the exercise
-
-After `setup_student.sh` finishes, you have three equivalent entry points.
-Pick whichever you're most comfortable with — they all use the same kernel
-and the same data.
-
-### Option A — Jupyter Lab (recommended for this course)
-
-```bash
-./.venv/bin/jupyter lab            # opens in your browser
-```
-
-In the file browser, double-click **`exercise.ipynb`** (the version with
-TODOs). At the top right, pick the **Python (06_image_translation)** kernel,
-then run cells top-to-bottom with `Shift+Enter`. If you get stuck, peek at
-**`solution.ipynb`** for the filled-in answer to that block.
-
-### Option B — VSCode (notebook or cell mode)
-
-Install VSCode plus the Python + Jupyter extensions. Then either:
-
-- Open **`exercise.ipynb`** directly (it behaves like Jupyter Lab inside
-  VSCode), or
-- Open **`solution.py`** and use
-[cell mode](https://code.visualstudio.com/docs/python/jupyter-support-py)
-to run each `# %%` block interactively (`Ctrl+Enter` / `Shift+Enter`).
-
-Either way, pick **Python (06_image_translation)** as the kernel from the
-top-right kernel selector.
-
-### Regenerating the notebooks
-
-`exercise.ipynb` and `solution.ipynb` are regenerated from `solution.py` by a
-GitHub Action on every push. To rebuild them locally (after editing
-`solution.py`):
+Rebuild the notebooks after editing `solution.py`:
 
 ```bash
 bash prepare-exercise.sh
 ```
 
-### Re-registering the Jupyter kernel
-
-If the kernel is missing from the dropdown (e.g. you reinstalled the venv):
+Re-register the Jupyter kernel if it disappears from the dropdown:
 
 ```bash
 ./.venv/bin/python -m ipykernel install --user \
