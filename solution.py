@@ -1790,14 +1790,6 @@ segmentation_store = open_ome_zarr(
     layout="hcs",
 )
 
-# Creating an output store for the predictions and segmentations
-segmentation_store = open_ome_zarr(
-    output_segmentation_path,
-    channel_names=["nuc_pred", "mem_pred", "nuc_labels"],
-    mode="w",
-    layout="hcs",
-)
-
 # Iterating through the test dataset positions to:
 total_positions = len(positions)
 CROP_SIZE = 768
