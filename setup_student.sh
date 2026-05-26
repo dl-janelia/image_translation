@@ -81,24 +81,29 @@ fi
 echo "Active env: $CONDA_DEFAULT_ENV (python: $(python --version))"
 
 # --- 2. Install dependencies into the active conda env ---------------------
-# Use uv inside the env: faster solver than pip, reads pyproject.toml +
-# uv.lock for reproducible installs. `uv sync --active` installs into the
-# currently-activated env instead of creating a separate .venv.
+# Use uv inside the env for fast resolution. We deliberately use
+# `uv pip install --python $(which python)` rather than `uv sync`:
+#   - uv sync is project-mode and always creates its own ./.venv, even with
+#     --active; it does not respect CONDA_PREFIX.
+#   - `uv pip install --python ...` installs into the targeted Python's
+#     site-packages directly — which, with the conda env activated, is the
+#     conda env's site-packages. That is what we want.
 if ! command -v uv >/dev/null 2>&1; then
     echo "Installing uv into the conda env ..."
     python -m pip install uv
 fi
 echo "Using uv: $(uv --version)"
 
-echo "Syncing dependencies from pyproject.toml and uv.lock ..."
-uv sync --active --project "$SCRIPT_DIR"
+CONDA_PY="$(which python)"
+echo "Installing dependencies into $CONDA_PY ..."
+uv pip install --python "$CONDA_PY" -r "$SCRIPT_DIR/pyproject.toml"
 
 # Workspace override: if this exercise is checked out inside the VisCy
-# monorepo, swap the synced cytoland for the local editable copy so changes
-# to the upstream source are picked up live.
+# monorepo, swap the installed cytoland for the local editable copy so
+# changes to the upstream source are picked up live.
 if [[ "$INSTALL_MODE" == "workspace" ]]; then
     echo "Workspace mode: replacing cytoland with editable install from $MONOREPO_ROOT ..."
-    uv pip install -e "$MONOREPO_ROOT/applications/cytoland[metrics]"
+    uv pip install --python "$CONDA_PY" -e "$MONOREPO_ROOT/applications/cytoland[metrics]"
 fi
 
 # --- 3. Register the env as a Jupyter kernel -------------------------------
