@@ -14,7 +14,6 @@ dependencies = [
     "cellpose",
     "cmap",
     "torchview",
-    "microssim",
     "scikit-learn",
     "torchmetrics[detection]",
     "faster-coco-eval",

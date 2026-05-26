@@ -134,8 +134,7 @@ from lightning.pytorch import seed_everything
 from lightning.pytorch.callbacks import TQDMProgressBar
 from lightning.pytorch.loggers import TensorBoardLogger
 
-# microSSIM: SSIM variant designed for fluorescence microscopy.
-from microssim import micro_structural_similarity
+from skimage.metrics import structural_similarity
 from natsort import natsorted
 from numpy.typing import ArrayLike
 
@@ -1160,7 +1159,7 @@ phase2fluor_model.to(device)
 #
 # We evaluate on a held-out test set using two complementary families of metrics:
 #
-# - **Regression / pixel-level** (Pearson, microSSIM): are predicted
+# - **Regression / pixel-level** (Pearson, SSIM): are predicted
 #   intensities close to ground truth, per pixel? Cheap, but can hide
 #   topological errors — a model that merges two nuclei may still score well
 #   pixel-wise.
@@ -1191,19 +1190,16 @@ phase2fluor_model.to(device)
 #   offsets. Good at flagging "the pattern is right" but blind to structural
 #   errors that preserve correlation (e.g. a uniformly blurred prediction).
 #
-# - **microSSIM**: a microscopy-aware variant of
-#   [Structural Similarity (SSIM)](https://en.wikipedia.org/wiki/Structural_similarity).
-#   Classic SSIM patch-wise compares local mean, variance, and covariance and
-#   captures structure Pearson misses (blurring, contrast loss) — but it
-#   assumes the natural-image dynamic range. Fluorescence microscopy images
-#   are sparse, dim, and noisy: with the default SSIM parameters the scores
-#   collapse into a narrow band that barely separates good and bad
-#   predictions. [microSSIM](https://github.com/juglab/MicroSSIM)
-#   ([Ashesh et al., 2024](https://arxiv.org/abs/2408.08747)) fixes this by
-#   subtracting the image background and fitting a per-image rescaling factor
-#   before computing SSIM, so the metric becomes sensitive over the range of
-#   intensities microscopy predictions actually live in. We use it as a
-#   drop-in replacement for `skimage.metrics.structural_similarity`.
+# - **SSIM ([Structural Similarity](https://en.wikipedia.org/wiki/Structural_similarity))**:
+#   patch-wise compares local mean, variance, and covariance between
+#   prediction and target. It captures structure Pearson misses — blurring,
+#   contrast loss, edge softness. We use
+#   `skimage.metrics.structural_similarity` with `data_range=1` after
+#   normalizing both arrays to `[0, 1]`. Note: SSIM was designed for
+#   natural images; on sparse, low-dynamic-range microscopy data it tends
+#   to compress into a narrow band, so treat absolute SSIM values as
+#   relative to other models on the same task, not as universal quality
+#   numbers.
 
 # %% [markdown] tags=[]
 # ### Let's compute metrics directly and plot below.
@@ -1263,17 +1259,32 @@ test_data = HCSDataModule(
 test_data.setup("test")
 
 test_metrics = pd.DataFrame(
-    columns=["pearson_nuc", "microSSIM_nuc", "pearson_mem", "microSSIM_mem"]
+    columns=["pearson_nuc", "SSIM_nuc", "pearson_mem", "SSIM_mem"]
 )
 
 
 # %%
 # Compute metrics directly and plot here.
+#
+# Two helpers:
+#   normalize_fov  -> z-score (zero mean, unit variance), used to put the
+#                     phase *input* in the same statistical range the model
+#                     was trained on.
+#   min_max_scale  -> [0, 1] range, used to put the *target* and *prediction*
+#                     into a known dynamic range before passing them to SSIM
+#                     (so `data_range=1` is exactly correct).
 def normalize_fov(input: ArrayLike):
-    "Normalizing the fov with zero mean and unit variance"
+    "Normalize an FOV to zero mean and unit variance (used for model input)."
     mean = np.mean(input)
     std = np.std(input)
     return (input - mean) / std
+
+
+def min_max_scale(image: ArrayLike) -> ArrayLike:
+    "Rescale an image to the [0, 1] range (used before SSIM)."
+    min_val = image.min()
+    max_val = image.max()
+    return (image - min_val) / (max_val - min_val)
 
 
 for i, sample in enumerate(
@@ -1288,28 +1299,30 @@ for i, sample in enumerate(
     )  # Squeezing batch dimension.
     predicted_image = predicted_image.cpu().numpy().squeeze(0)
     phase_image = phase_image.cpu().numpy().squeeze(0)
-    target_mem = normalize_fov(target_image[1, 0, :, :])
-    target_nuc = normalize_fov(target_image[0, 0, :, :])
+    # Rescale target + prediction to [0, 1] so SSIM's `data_range=1` is
+    # exactly the dynamic range of the arrays we pass in.
+    target_mem = min_max_scale(target_image[1, 0, :, :])
+    target_nuc = min_max_scale(target_image[0, 0, :, :])
     # slicing channel dimension, squeezing z-dimension.
-    predicted_mem = normalize_fov(predicted_image[1, :, :, :].squeeze(0))
-    predicted_nuc = normalize_fov(predicted_image[0, :, :, :].squeeze(0))
+    predicted_mem = min_max_scale(predicted_image[1, :, :, :].squeeze(0))
+    predicted_nuc = min_max_scale(predicted_image[0, :, :, :].squeeze(0))
 
-    # Compute microSSIM and pearson correlation.
-    ssim_nuc = micro_structural_similarity(target_nuc, predicted_nuc)
-    ssim_mem = micro_structural_similarity(target_mem, predicted_mem)
+    # Compute SSIM and pearson correlation.
+    ssim_nuc = structural_similarity(target_nuc, predicted_nuc, data_range=1)
+    ssim_mem = structural_similarity(target_mem, predicted_mem, data_range=1)
     pearson_nuc = np.corrcoef(target_nuc.flatten(), predicted_nuc.flatten())[0, 1]
     pearson_mem = np.corrcoef(target_mem.flatten(), predicted_mem.flatten())[0, 1]
 
     test_metrics.loc[i] = {
         "pearson_nuc": pearson_nuc,
-        "microSSIM_nuc": ssim_nuc,
+        "SSIM_nuc": ssim_nuc,
         "pearson_mem": pearson_mem,
-        "microSSIM_mem": ssim_mem,
+        "SSIM_mem": ssim_mem,
     }
 
 # Plot the following metrics
 test_metrics.boxplot(
-    column=["pearson_nuc", "microSSIM_nuc", "pearson_mem", "microSSIM_mem"],
+    column=["pearson_nuc", "SSIM_nuc", "pearson_mem", "SSIM_mem"],
     rot=30,
 )
 
@@ -1524,7 +1537,7 @@ phase2fluor_model.eval()
 # Before you run the following code, make sure you have the pretrained model loaded and the test data is ready.
 
 # The following code will compute the following:
-# - the pixel-based metrics  (pearson correlation, microSSIM)
+# - the pixel-based metrics  (pearson correlation, SSIM)
 # - segmentation-based metrics (mAP@0.5, dice, accuracy, jaccard index)
 
 
@@ -1585,9 +1598,9 @@ test_pixel_metrics = pd.DataFrame(
         "model",
         "fov",
         "pearson_nuc",
-        "microSSIM_nuc",
+        "SSIM_nuc",
         "pearson_mem",
-        "microSSIM_mem",
+        "SSIM_mem",
     ]
 )
 test_segmentation_metrics = pd.DataFrame(
@@ -1618,14 +1631,6 @@ phase_cidx = channel_names.index("Phase3D")
 nuc_cidx = channel_names.index("Nucl")
 mem_cidx = channel_names.index("Mem")
 nuc_label_cidx = channel_names.index("nuclei_segmentation")
-
-
-# %%
-def min_max_scale(image: ArrayLike) -> ArrayLike:
-    "Normalizing the image using min-max scaling"
-    min_val = image.min()
-    max_val = image.max()
-    return (image - min_val) / (max_val - min_val)
 
 
 # %% [markdown]
@@ -1854,14 +1859,14 @@ with tqdm(total=total_positions, desc="Processing FOVs") as pbar:
         )
 
         #######  Pixel-based Metrics ############
-        # Compute microSSIM and Pearson correlation for phase2fluor_model
+        # Compute SSIM and Pearson correlation for phase2fluor_model
         pbar.set_description(f"Processing FOV {fov} - Computing Pixel Metrics")
         pbar.refresh()
-        ssim_nuc_phase2fluor = micro_structural_similarity(
-            target_nuc, predicted_nuc_phase2fluor
+        ssim_nuc_phase2fluor = structural_similarity(
+            target_nuc, predicted_nuc_phase2fluor, data_range=1
         )
-        ssim_mem_phase2fluor = micro_structural_similarity(
-            target_mem, predicted_mem_phase2fluor
+        ssim_mem_phase2fluor = structural_similarity(
+            target_mem, predicted_mem_phase2fluor, data_range=1
         )
         pearson_nuc_phase2fluor = np.corrcoef(
             target_nuc.flatten(), predicted_nuc_phase2fluor.flatten()
@@ -1874,16 +1879,16 @@ with tqdm(total=total_positions, desc="Processing FOVs") as pbar:
             "model": "phase2fluor",
             "fov": fov,
             "pearson_nuc": pearson_nuc_phase2fluor,
-            "microSSIM_nuc": ssim_nuc_phase2fluor,
+            "SSIM_nuc": ssim_nuc_phase2fluor,
             "pearson_mem": pearson_mem_phase2fluor,
-            "microSSIM_mem": ssim_mem_phase2fluor,
+            "SSIM_mem": ssim_mem_phase2fluor,
         }
-        # Compute microSSIM and Pearson correlation for pretrained_model
-        ssim_nuc_pretrained = micro_structural_similarity(
-            target_nuc, predicted_nuc_pretrained
+        # Compute SSIM and Pearson correlation for pretrained_model
+        ssim_nuc_pretrained = structural_similarity(
+            target_nuc, predicted_nuc_pretrained, data_range=1
         )
-        ssim_mem_pretrained = micro_structural_similarity(
-            target_mem, predicted_mem_pretrained
+        ssim_mem_pretrained = structural_similarity(
+            target_mem, predicted_mem_pretrained, data_range=1
         )
         pearson_nuc_pretrained = np.corrcoef(
             target_nuc.flatten(), predicted_nuc_pretrained.flatten()
@@ -1896,9 +1901,9 @@ with tqdm(total=total_positions, desc="Processing FOVs") as pbar:
             "model": "pretrained_phase2fluor",
             "fov": fov,
             "pearson_nuc": pearson_nuc_pretrained,
-            "microSSIM_nuc": ssim_nuc_pretrained,
+            "SSIM_nuc": ssim_nuc_pretrained,
             "pearson_mem": pearson_mem_pretrained,
-            "microSSIM_mem": ssim_mem_pretrained,
+            "SSIM_mem": ssim_mem_pretrained,
         }
 
         ###### Segmentation based metrics #########
@@ -2020,7 +2025,7 @@ test_segmentation_metrics.to_csv(segmentation_metrics_path)
 # Boxplot of the metrics
 test_pixel_metrics.boxplot(
     by="model",
-    column=["pearson_nuc", "microSSIM_nuc", "pearson_mem", "microSSIM_mem"],
+    column=["pearson_nuc", "SSIM_nuc", "pearson_mem", "SSIM_mem"],
     rot=30,
     figsize=(8, 8),
 )
@@ -2237,17 +2242,17 @@ with torch.inference_mode():
 # ##### TODO ########
 # #######################
 # Calculate metrics between predicted and target phase
-# HINT: Use microSSIM and Pearson correlation as in Task 2.3.
+# HINT: Use SSIM and Pearson correlation as in Task 2.3.
 
 # TODO: Normalize data range to 0-1
 ###### YOUR CODE HERE ######
 
-# TODO: Calculate microSSIM and Pearson correlation
+# TODO: Calculate SSIM and Pearson correlation
 ###### YOUR CODE HERE ######
 
 # TODO: Print metrics
 print("Phase Reconstruction Metrics:")
-print(f"microSSIM: {ssim_phase:.3f}")
+print(f"SSIM: {ssim_phase:.3f}")
 print(f"Pearson Correlation: {pearson_phase:.3f}")
 
 
@@ -2328,11 +2333,11 @@ fluor_input = fluor_input.cpu().numpy()
 predicted_image = predicted_phase.cpu().numpy().squeeze(0)
 target_phase = rescale_intensity(target_image[0, 0], out_range=(0, 1))
 predicted_phase = rescale_intensity(predicted_image[0, 0], out_range=(0, 1))
-ssim_phase = micro_structural_similarity(target_phase, predicted_phase)
+ssim_phase = structural_similarity(target_phase, predicted_phase, data_range=1)
 pearson_phase = np.corrcoef(target_phase.flatten(), predicted_phase.flatten())[0, 1]
 
 print("Phase Reconstruction Metrics:")
-print(f"microSSIM: {ssim_phase:.3f}")
+print(f"SSIM: {ssim_phase:.3f}")
 print(f"Pearson Correlation: {pearson_phase:.3f}")
 
 # %%
@@ -2351,7 +2356,7 @@ axs[0, 2].set_title("Combined Fluorescence\n(Nuclei + Membrane)")
 axs[1, 0].imshow(target_phase, cmap="gray")
 axs[1, 0].set_title("Target Phase Image")
 axs[1, 1].imshow(predicted_phase, cmap="gray")
-axs[1, 1].set_title(f"Predicted Phase\nmicroSSIM: {ssim_phase:.3f}")
+axs[1, 1].set_title(f"Predicted Phase\nSSIM: {ssim_phase:.3f}")
 axs[1, 2].imshow(np.abs(target_phase - predicted_phase), cmap="magma")
 axs[1, 2].set_title("Absolute Difference\n|Target - Predicted|")
 
@@ -2498,7 +2503,7 @@ tta_pred_mem = ...
 # For each of (single, TTA) and each of (nucleus, membrane):
 #   1. Rescale predicted and target arrays to the [0, 1] range
 #      (HINT: skimage.exposure.rescale_intensity with out_range=(0, 1))
-#   2. Compute microSSIM         (HINT: microssim.micro_structural_similarity)
+#   2. Compute SSIM              (HINT: skimage.metrics.structural_similarity)
 #   3. Compute Pearson r         (HINT: np.corrcoef(...)[0, 1])
 #
 # Store the eight scalars as:
@@ -2512,10 +2517,10 @@ print("\nMetrics Comparison:")
 print(f"{'Metric':<20} {'Single':<10} {'TTA':<10} {'Improvement':<12}")
 print("-" * 55)
 print(
-    f"{'microSSIM Nucleus':<20} {ssim_nuc_single:.3f}     {ssim_nuc_tta:.3f}     {ssim_nuc_tta - ssim_nuc_single:+.3f}"
+    f"{'SSIM Nucleus':<20} {ssim_nuc_single:.3f}     {ssim_nuc_tta:.3f}     {ssim_nuc_tta - ssim_nuc_single:+.3f}"
 )
 print(
-    f"{'microSSIM Membrane':<20} {ssim_mem_single:.3f}     {ssim_mem_tta:.3f}     {ssim_mem_tta - ssim_mem_single:+.3f}"
+    f"{'SSIM Membrane':<20} {ssim_mem_single:.3f}     {ssim_mem_tta:.3f}     {ssim_mem_tta - ssim_mem_single:+.3f}"
 )
 print(
     f"{'Pearson Nucleus':<20} {pearson_nuc_single:.3f}     {pearson_nuc_tta:.3f}     {pearson_nuc_tta - pearson_nuc_single:+.3f}"
@@ -2606,9 +2611,9 @@ single_pred_mem[0] = rescale_intensity(
 tta_pred_nuc[0] = rescale_intensity(tta_pred_nuc[0], in_range="image", out_range=(0, 1))
 tta_pred_mem[0] = rescale_intensity(tta_pred_mem[0], in_range="image", out_range=(0, 1))
 
-# Calculate metrics (microSSIM + Pearson)
-ssim_nuc_single = micro_structural_similarity(target_nuc[0], single_pred_nuc[0])
-ssim_mem_single = micro_structural_similarity(target_mem[0], single_pred_mem[0])
+# Calculate metrics (SSIM + Pearson)
+ssim_nuc_single = structural_similarity(target_nuc[0], single_pred_nuc[0], data_range=1)
+ssim_mem_single = structural_similarity(target_mem[0], single_pred_mem[0], data_range=1)
 pearson_nuc_single = np.corrcoef(target_nuc[0].flatten(), single_pred_nuc[0].flatten())[
     0, 1
 ]
@@ -2617,8 +2622,8 @@ pearson_mem_single = np.corrcoef(target_mem[0].flatten(), single_pred_mem[0].fla
 ]
 
 # TTA prediction metrics
-ssim_nuc_tta = micro_structural_similarity(target_nuc[0], tta_pred_nuc[0])
-ssim_mem_tta = micro_structural_similarity(target_mem[0], tta_pred_mem[0])
+ssim_nuc_tta = structural_similarity(target_nuc[0], tta_pred_nuc[0], data_range=1)
+ssim_mem_tta = structural_similarity(target_mem[0], tta_pred_mem[0], data_range=1)
 pearson_nuc_tta = np.corrcoef(target_nuc[0].flatten(), tta_pred_nuc[0].flatten())[0, 1]
 pearson_mem_tta = np.corrcoef(target_mem[0].flatten(), tta_pred_mem[0].flatten())[0, 1]
 
@@ -2627,10 +2632,10 @@ print("\nMetrics Comparison:")
 print(f"{'Metric':<20} {'Single':<10} {'TTA':<10} {'Improvement':<12}")
 print("-" * 55)
 print(
-    f"{'microSSIM Nucleus':<20} {ssim_nuc_single:.3f}     {ssim_nuc_tta:.3f}     {ssim_nuc_tta - ssim_nuc_single:+.3f}"
+    f"{'SSIM Nucleus':<20} {ssim_nuc_single:.3f}     {ssim_nuc_tta:.3f}     {ssim_nuc_tta - ssim_nuc_single:+.3f}"
 )
 print(
-    f"{'microSSIM Membrane':<20} {ssim_mem_single:.3f}     {ssim_mem_tta:.3f}     {ssim_mem_tta - ssim_mem_single:+.3f}"
+    f"{'SSIM Membrane':<20} {ssim_mem_single:.3f}     {ssim_mem_tta:.3f}     {ssim_mem_tta - ssim_mem_single:+.3f}"
 )
 print(
     f"{'Pearson Nucleus':<20} {pearson_nuc_single:.3f}     {pearson_nuc_tta:.3f}     {pearson_nuc_tta - pearson_nuc_single:+.3f}"

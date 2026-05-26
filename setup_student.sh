@@ -8,7 +8,7 @@
 #   1. Installs uv if missing (user-level, no sudo).
 #   2. Creates a Python 3.13 venv under this folder (./.venv).
 #   3. Installs cytoland + viscy (>=0.5.0a0) plus the tutorial extras:
-#      cellpose, torchview, microssim, jupyter, ipywidgets, jupytext.
+#      cellpose, torchview, jupyter, ipywidgets, jupytext.
 #      If run from inside a checkout of the VisCy monorepo, installs
 #      the local cytoland workspace package in editable mode (pulls
 #      viscy-data, viscy-models, viscy-transforms, viscy-utils from
