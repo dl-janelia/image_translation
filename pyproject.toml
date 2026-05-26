@@ -20,6 +20,11 @@ dependencies = [
     # 2. viscy declares `torch>=2.10` (over-conservative — we override below).
     "torch==2.4.1",
     "torchvision==0.19.1",
+    # transformers 5.x imports torch.distributed.tensor.device_mesh, which
+    # only exists in torch 2.5+. viscy declares transformers>=4.40 (no upper
+    # bound), so without this constraint uv resolves to 5.x and breaks
+    # at import time. 4.x is fine with torch 2.4.
+    "transformers<5",
     "cytoland[metrics] @ git+https://github.com/mehta-lab/VisCy.git@v0.5.0a1#subdirectory=applications/cytoland",
     "cellpose",
     "cmap",
@@ -38,11 +43,12 @@ dependencies = [
 [tool.uv]
 package = false
 
-# Override viscy's torch>=2.10 floor. The actual torch API surface viscy
-# uses is well below that (basic ops, autograd, cuda) and works with 2.4.
+# Override viscy's torch>=2.10 floor and let transformers stay <5 alongside
+# torch 2.4 (the actual API surface viscy uses works fine with both).
 override-dependencies = [
     "torch==2.4.1",
     "torchvision==0.19.1",
+    "transformers<5",
 ]
 
 [tool.uv.sources]
