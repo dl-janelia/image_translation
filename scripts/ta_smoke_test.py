@@ -65,8 +65,15 @@ print(f"  GPU: {torch.cuda.get_device_name(0)}")
 # ---------------------------------------------------------------------------
 # Mini training pipeline (matches solution.py Part 1, scaled down)
 # ---------------------------------------------------------------------------
-BATCH_SIZE = 4
-YX_PATCH_SIZE = (256, 256)
+# Conservative batch size + patch size so the smoke test fits on T4 (15 GB),
+# which is what the course AWS instances ship with. The full solution.py uses
+# BATCH_SIZE=16 and 256x256 patches — that needs a beefier GPU (A40/A100).
+# Override with TA_SMOKE_BATCH_SIZE / TA_SMOKE_PATCH if a TA wants to test
+# the realistic configuration on a bigger GPU.
+BATCH_SIZE = int(os.environ.get("TA_SMOKE_BATCH_SIZE", "2"))
+YX_PATCH = int(os.environ.get("TA_SMOKE_PATCH", "192"))
+YX_PATCH_SIZE = (YX_PATCH, YX_PATCH)
+print(f"  smoke config: batch_size={BATCH_SIZE}, yx_patch={YX_PATCH_SIZE}")
 source_channel = ["Phase3D"]
 target_channel = ["Nucl", "Mem"]
 
@@ -141,7 +148,9 @@ VisCyTrainer(
     accelerator="gpu", devices=[0],
     precision="16-mixed", fast_dev_run=True,
 ).fit(model, datamodule=dm)
-print("    fast_dev_run OK")
+torch.cuda.empty_cache()
+print(f"    fast_dev_run OK  (GPU after empty_cache: "
+      f"{torch.cuda.memory_allocated() / 1e9:.2f} GB allocated)")
 
 print("\n## [2/3] 2-epoch limited run ...")
 VisCyTrainer(
@@ -155,6 +164,8 @@ VisCyTrainer(
     enable_progress_bar=False,
 ).fit(model, datamodule=dm)
 print(f"    2-epoch run OK  (peak GPU: {torch.cuda.max_memory_allocated() / 1e9:.2f} GB)")
+del model
+torch.cuda.empty_cache()
 
 # ---------------------------------------------------------------------------
 # Sanity-check the pretrained checkpoint loads (Part 2 of the exercise)
