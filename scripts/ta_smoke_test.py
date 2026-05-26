@@ -17,8 +17,16 @@ from pathlib import Path
 sys.stdout.reconfigure(line_buffering=True)
 sys.stderr.reconfigure(line_buffering=True)
 
+# Tell PyTorch's CUDA allocator to grow segments dynamically. Without this,
+# training allocates a bunch of activation chunks, then validation tries to
+# allocate big tensors and can't find a contiguous slot — even though the
+# total free memory would be enough. Set BEFORE importing torch.
+os.environ.setdefault(
+    "PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True"
+)
+
 import torch
-from lightning.pytorch import seed_everything
+from lightning.pytorch import Callback, seed_everything
 from lightning.pytorch.loggers import TensorBoardLogger
 
 from cytoland.engine import VSUNet
@@ -153,10 +161,25 @@ model = VSUNet(
     freeze_encoder=False,
 )
 
+
+class EmptyCacheBeforeValidation(Callback):
+    """Free cached activations from training before the validation forward pass.
+
+    Memory-tight GPUs (T4 / 15 GB) often OOM at the start of validation
+    because torch's caching allocator holds onto activation slabs from
+    training. Calling empty_cache() between phases returns those slabs to
+    the device and avoids fragmentation.
+    """
+
+    def on_validation_start(self, trainer, pl_module):
+        torch.cuda.empty_cache()
+
+
 print("\n## [1/3] fast_dev_run ...")
 VisCyTrainer(
     accelerator="gpu", devices=[0],
     precision="16-mixed", fast_dev_run=True,
+    callbacks=[EmptyCacheBeforeValidation()],
 ).fit(model, datamodule=dm)
 torch.cuda.empty_cache()
 print(f"    fast_dev_run OK  (GPU after empty_cache: "
@@ -172,6 +195,7 @@ VisCyTrainer(
         save_dir="/tmp/ta_smoke", name="phase2fluor", log_graph=False,
     ),
     enable_progress_bar=False,
+    callbacks=[EmptyCacheBeforeValidation()],
 ).fit(model, datamodule=dm)
 print(f"    2-epoch run OK  (peak GPU: {torch.cuda.max_memory_allocated() / 1e9:.2f} GB)")
 del model
