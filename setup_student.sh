@@ -33,7 +33,7 @@ set -euo pipefail
 START_DIR=$(pwd)
 ENV_NAME="${ENV_NAME:-06_image_translation}"
 KERNEL_NAME="${KERNEL_NAME:-$ENV_NAME}"
-PYTHON_VERSION="${PYTHON_VERSION:-3.13}"
+PYTHON_VERSION="${PYTHON_VERSION:-3.12}"
 
 # --- Detect optional VisCy monorepo root (four levels up from this script) -
 # When this exercise lives inside a viscy clone, install cytoland in editable
