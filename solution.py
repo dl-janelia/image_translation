@@ -1109,14 +1109,23 @@ model_graph_phase2fluor.visual_graph
 # loss, backward, optimizer step, validation every epoch, checkpoint at the
 # end — across `max_epochs` epochs.
 
-# %%
+# %% tags=["task"]
 # Check if GPU is available
 # You can check by typing `nvidia-smi`
 GPU_ID = 0
 
 n_samples = len(phase2fluor_2D_data.train_dataset)
 steps_per_epoch = n_samples // BATCH_SIZE  # steps per epoch.
-n_epochs = 80  # Set this to 80-100 or the number of epochs you want to train for.
+
+# #######################
+# ##### TODO ########
+# #######################
+# How many passes over the training set should we run? Pick a value
+# (80-100 is a reasonable starting point for this dataset and model
+# size) and assign it to `n_epochs` below. You can monitor training
+# progress in TensorBoard; if loss plateaus early, fewer epochs are
+# enough — if it's still improving at the end, increase it.
+n_epochs = ...  # TODO
 
 trainer = VisCyTrainer(
     accelerator="gpu",
@@ -1136,6 +1145,30 @@ trainer = VisCyTrainer(
 trainer.fit(phase2fluor_model, datamodule=phase2fluor_2D_data)
 
 # Move the model to the GPU.
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+phase2fluor_model.to(device)
+
+# %% tags=["solution"]
+GPU_ID = 0
+
+n_samples = len(phase2fluor_2D_data.train_dataset)
+steps_per_epoch = n_samples // BATCH_SIZE
+n_epochs = 80
+
+trainer = VisCyTrainer(
+    accelerator="gpu",
+    devices=[GPU_ID],
+    max_epochs=n_epochs,
+    precision="16-mixed",
+    log_every_n_steps=steps_per_epoch // 2,
+    logger=TensorBoardLogger(
+        save_dir=log_dir,
+        name="phase2fluor",
+        log_graph=True,
+    ),
+)
+trainer.fit(phase2fluor_model, datamodule=phase2fluor_2D_data)
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 phase2fluor_model.to(device)
 # %% [markdown] tags=[]
