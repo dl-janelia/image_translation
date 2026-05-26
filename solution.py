@@ -610,7 +610,7 @@ log_batch_jupyter(batch)
 # 1. How do they make the model more robust to imaging parameters or conditions
 # without having to acquire data for every possible condition? <br>
 # </div>
-# %% [markdown] tags=[]
+# %% [markdown] tags=["solution"]
 # Each augmentation simulates a real-world source of microscope-to-microscope
 # variation so the model doesn't overfit to the training conditions:
 #
