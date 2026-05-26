@@ -1524,7 +1524,7 @@ phase2fluor_model.eval()
 # Before you run the following code, make sure you have the pretrained model loaded and the test data is ready.
 
 # The following code will compute the following:
-# - the pixel-based metrics  (pearson correlation, SSIM)
+# - the pixel-based metrics  (pearson correlation, microSSIM)
 # - segmentation-based metrics (mAP@0.5, dice, accuracy, jaccard index)
 
 
@@ -2237,17 +2237,17 @@ with torch.inference_mode():
 # ##### TODO ########
 # #######################
 # Calculate metrics between predicted and target phase
-# HINT: Use SSIM and Pearson correlation as before
+# HINT: Use microSSIM and Pearson correlation as in Task 2.3.
 
 # TODO: Normalize data range to 0-1
 ###### YOUR CODE HERE ######
 
-# TODO: Calculate SSIM and Pearson correlation
+# TODO: Calculate microSSIM and Pearson correlation
 ###### YOUR CODE HERE ######
 
 # TODO: Print metrics
 print("Phase Reconstruction Metrics:")
-print(f"SSIM: {ssim_phase:.3f}")
+print(f"microSSIM: {ssim_phase:.3f}")
 print(f"Pearson Correlation: {pearson_phase:.3f}")
 
 
@@ -2298,7 +2298,6 @@ fluor2phase_model.eval()
 
 # First-use imports for this cell (kept here so the solution notebook works
 # top-to-bottom even when earlier task-tagged cells are stripped).
-from skimage import metrics  # noqa: E402
 from skimage.exposure import rescale_intensity  # noqa: E402
 
 source_channel_fluor = ["Nucl", "Mem"]
@@ -2329,11 +2328,11 @@ fluor_input = fluor_input.cpu().numpy()
 predicted_image = predicted_phase.cpu().numpy().squeeze(0)
 target_phase = rescale_intensity(target_image[0, 0], out_range=(0, 1))
 predicted_phase = rescale_intensity(predicted_image[0, 0], out_range=(0, 1))
-ssim_phase = metrics.structural_similarity(target_phase, predicted_phase, data_range=1)
+ssim_phase = micro_structural_similarity(target_phase, predicted_phase)
 pearson_phase = np.corrcoef(target_phase.flatten(), predicted_phase.flatten())[0, 1]
 
 print("Phase Reconstruction Metrics:")
-print(f"SSIM: {ssim_phase:.3f}")
+print(f"microSSIM: {ssim_phase:.3f}")
 print(f"Pearson Correlation: {pearson_phase:.3f}")
 
 # %%
@@ -2352,7 +2351,7 @@ axs[0, 2].set_title("Combined Fluorescence\n(Nuclei + Membrane)")
 axs[1, 0].imshow(target_phase, cmap="gray")
 axs[1, 0].set_title("Target Phase Image")
 axs[1, 1].imshow(predicted_phase, cmap="gray")
-axs[1, 1].set_title(f"Predicted Phase\nSSIM: {ssim_phase:.3f}")
+axs[1, 1].set_title(f"Predicted Phase\nmicroSSIM: {ssim_phase:.3f}")
 axs[1, 2].imshow(np.abs(target_phase - predicted_phase), cmap="magma")
 axs[1, 2].set_title("Absolute Difference\n|Target - Predicted|")
 
@@ -2499,8 +2498,8 @@ tta_pred_mem = ...
 # For each of (single, TTA) and each of (nucleus, membrane):
 #   1. Rescale predicted and target arrays to the [0, 1] range
 #      (HINT: skimage.exposure.rescale_intensity with out_range=(0, 1))
-#   2. Compute SSIM             (HINT: skimage.metrics.structural_similarity)
-#   3. Compute Pearson r        (HINT: np.corrcoef(...)[0, 1])
+#   2. Compute microSSIM         (HINT: microssim.micro_structural_similarity)
+#   3. Compute Pearson r         (HINT: np.corrcoef(...)[0, 1])
 #
 # Store the eight scalars as:
 #   ssim_nuc_single, ssim_mem_single, pearson_nuc_single, pearson_mem_single
@@ -2513,10 +2512,10 @@ print("\nMetrics Comparison:")
 print(f"{'Metric':<20} {'Single':<10} {'TTA':<10} {'Improvement':<12}")
 print("-" * 55)
 print(
-    f"{'SSIM Nucleus':<20} {ssim_nuc_single:.3f}     {ssim_nuc_tta:.3f}     {ssim_nuc_tta - ssim_nuc_single:+.3f}"
+    f"{'microSSIM Nucleus':<20} {ssim_nuc_single:.3f}     {ssim_nuc_tta:.3f}     {ssim_nuc_tta - ssim_nuc_single:+.3f}"
 )
 print(
-    f"{'SSIM Membrane':<20} {ssim_mem_single:.3f}     {ssim_mem_tta:.3f}     {ssim_mem_tta - ssim_mem_single:+.3f}"
+    f"{'microSSIM Membrane':<20} {ssim_mem_single:.3f}     {ssim_mem_tta:.3f}     {ssim_mem_tta - ssim_mem_single:+.3f}"
 )
 print(
     f"{'Pearson Nucleus':<20} {pearson_nuc_single:.3f}     {pearson_nuc_tta:.3f}     {pearson_nuc_tta - pearson_nuc_single:+.3f}"
@@ -2607,13 +2606,9 @@ single_pred_mem[0] = rescale_intensity(
 tta_pred_nuc[0] = rescale_intensity(tta_pred_nuc[0], in_range="image", out_range=(0, 1))
 tta_pred_mem[0] = rescale_intensity(tta_pred_mem[0], in_range="image", out_range=(0, 1))
 
-# Calculate metrics
-ssim_nuc_single = metrics.structural_similarity(
-    target_nuc[0], single_pred_nuc[0], data_range=1
-)
-ssim_mem_single = metrics.structural_similarity(
-    target_mem[0], single_pred_mem[0], data_range=1
-)
+# Calculate metrics (microSSIM + Pearson)
+ssim_nuc_single = micro_structural_similarity(target_nuc[0], single_pred_nuc[0])
+ssim_mem_single = micro_structural_similarity(target_mem[0], single_pred_mem[0])
 pearson_nuc_single = np.corrcoef(target_nuc[0].flatten(), single_pred_nuc[0].flatten())[
     0, 1
 ]
@@ -2622,12 +2617,8 @@ pearson_mem_single = np.corrcoef(target_mem[0].flatten(), single_pred_mem[0].fla
 ]
 
 # TTA prediction metrics
-ssim_nuc_tta = metrics.structural_similarity(
-    target_nuc[0], tta_pred_nuc[0], data_range=1
-)
-ssim_mem_tta = metrics.structural_similarity(
-    target_mem[0], tta_pred_mem[0], data_range=1
-)
+ssim_nuc_tta = micro_structural_similarity(target_nuc[0], tta_pred_nuc[0])
+ssim_mem_tta = micro_structural_similarity(target_mem[0], tta_pred_mem[0])
 pearson_nuc_tta = np.corrcoef(target_nuc[0].flatten(), tta_pred_nuc[0].flatten())[0, 1]
 pearson_mem_tta = np.corrcoef(target_mem[0].flatten(), tta_pred_mem[0].flatten())[0, 1]
 
@@ -2636,10 +2627,10 @@ print("\nMetrics Comparison:")
 print(f"{'Metric':<20} {'Single':<10} {'TTA':<10} {'Improvement':<12}")
 print("-" * 55)
 print(
-    f"{'SSIM Nucleus':<20} {ssim_nuc_single:.3f}     {ssim_nuc_tta:.3f}     {ssim_nuc_tta - ssim_nuc_single:+.3f}"
+    f"{'microSSIM Nucleus':<20} {ssim_nuc_single:.3f}     {ssim_nuc_tta:.3f}     {ssim_nuc_tta - ssim_nuc_single:+.3f}"
 )
 print(
-    f"{'SSIM Membrane':<20} {ssim_mem_single:.3f}     {ssim_mem_tta:.3f}     {ssim_mem_tta - ssim_mem_single:+.3f}"
+    f"{'microSSIM Membrane':<20} {ssim_mem_single:.3f}     {ssim_mem_tta:.3f}     {ssim_mem_tta - ssim_mem_single:+.3f}"
 )
 print(
     f"{'Pearson Nucleus':<20} {pearson_nuc_single:.3f}     {pearson_nuc_tta:.3f}     {pearson_nuc_tta - pearson_nuc_single:+.3f}"
