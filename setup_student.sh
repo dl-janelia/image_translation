@@ -60,42 +60,19 @@ VENV_DIR="$SCRIPT_DIR/.venv"
 uv venv --python "$PYTHON_VERSION" "$VENV_DIR"
 PY="$VENV_DIR/bin/python"
 
-# --- 3. Install cytoland + viscy + tutorial extras -------------------------
-# TODO(dl-janelia): switch this branch back to PyPI once viscy/cytoland 0.5.0a*
-# is published. As of 2026-05-18, the new modular packages
-# (viscy-data, viscy-models, viscy-transforms, viscy-utils, cytoland) are NOT
-# yet on PyPI — only viscy 0.4.0 is published. When the alpha lands, replace
-# the git install below with:
-#     uv pip install --python "$PY" --prerelease=allow \
-#         "viscy>=0.5.0a1" "cytoland[metrics]>=0.5.0a1"
-#
-# We pin to the v0.5.0a1 git tag (v0.5.0a0 was broken against current iohub —
-# called img.name, which iohub 0.3.4 no longer exposes; that bug is fixed in
-# v0.5.0a1). Override with `VISCY_REF=main bash setup_student.sh` to take the
-# latest commit instead of the pinned tag.
-VISCY_REF="${VISCY_REF:-v0.5.0a1}"
+# --- 3. Install all dependencies (declared in pyproject.toml) ---------------
+# pyproject.toml is the single source of truth for what gets installed.
+# Bump the cytoland git ref in there to upgrade VisCy.
+echo "Installing dependencies from pyproject.toml ..."
+uv pip install --python "$PY" -r "$SCRIPT_DIR/pyproject.toml"
+
+# Workspace override: if this exercise is checked out inside the VisCy
+# monorepo, swap the git-installed cytoland for the local editable copy so
+# changes to the upstream source picked up live.
 if [[ "$INSTALL_MODE" == "workspace" ]]; then
-    echo "Installing cytoland (editable) from $MONOREPO_ROOT ..."
+    echo "Workspace mode: replacing cytoland with editable install from $MONOREPO_ROOT ..."
     uv pip install --python "$PY" -e "$MONOREPO_ROOT/applications/cytoland[metrics]"
-else
-    echo "Installing cytoland from mehta-lab/VisCy @ $VISCY_REF (git, workspace) ..."
-    uv pip install --python "$PY" \
-        "cytoland[metrics] @ git+https://github.com/mehta-lab/VisCy.git@${VISCY_REF}#subdirectory=applications/cytoland"
 fi
-uv pip install --python "$PY" \
-    cellpose \
-    cmap \
-    torchview \
-    microssim \
-    scikit-learn \
-    "torchmetrics[detection]" \
-    faster-coco-eval \
-    jupyter \
-    ipykernel \
-    ipywidgets \
-    jupytext \
-    nbformat \
-    nbconvert
 
 # --- 4. Register the venv as a Jupyter kernel ------------------------------
 "$PY" -m ipykernel install --user \
@@ -108,7 +85,7 @@ DATA_ROOT="${DATA_ROOT:-$HOME/data/$KERNEL_NAME}"
 TRAINING_ZARR="$DATA_ROOT/training/a549_hoechst_cellmask_train_val.zarr"
 TEST_ZARR="$DATA_ROOT/test/a549_hoechst_cellmask_test.zarr"
 CHECKPOINT="$DATA_ROOT/pretrained_models/VSCyto2D/epoch=399-step=23200.ckpt"
-FLUOR2PHASE_CKPT="$DATA_ROOT/pretrained_models/AIMBL_Demo/fluor2phase_step668.ckpt"
+FLUOR2PHASE_CKPT="$DATA_ROOT/pretrained_models/DLCourse/fluor2phase_step668.ckpt"
 
 mkdir -p "$DATA_ROOT/training" "$DATA_ROOT/test" "$DATA_ROOT/pretrained_models"
 
@@ -124,8 +101,11 @@ else
 
     cd "$DATA_ROOT/pretrained_models"
     wget -m -np -nH --cut-dirs=4 -R "index.html*" "https://public.czbiohub.org/comp.micro/viscy/VS_models/VSCyto2D/VSCyto2D/epoch=399-step=23200.ckpt"
-    # Second checkpoint used in Task 2.5 (fluorescence -> phase reverse model).
-    wget -m -np -nH --cut-dirs=4 -R "index.html*" "https://public.czbiohub.org/comp.micro/viscy/VS_models/VSCyto2D/AIMBL_Demo/fluor2phase_step668.ckpt"
+    # Part 2.5 reverse model (fluorescence -> phase), hosted under the
+    # dl_at_janelia/ tree because it's a DL@Janelia course model.
+    mkdir -p "$DATA_ROOT/pretrained_models/DLCourse"
+    cd "$DATA_ROOT/pretrained_models/DLCourse"
+    wget -m -np -nH --cut-dirs=4 -R "index.html*" "https://public.czbiohub.org/comp.micro/dl_at_janelia/DLCourse/pretrained_models/fluor2phase_step668.ckpt"
 fi
 
 cd "$START_DIR"

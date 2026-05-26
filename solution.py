@@ -2145,7 +2145,7 @@ plt.show()
 # %%
 # Path to the pretrained fluorescence to phase model checkpoint
 fluor2phase_model_path = (
-    top_dir / "pretrained_models/AIMBL_Demo/fluor2phase_step668.ckpt"
+    top_dir / "pretrained_models/DLCourse/fluor2phase_step668.ckpt"
 )
 
 
@@ -2267,7 +2267,7 @@ print("In practice, load a pretrained checkpoint for meaningful results")
 
 print("\nLoading pretrained fluorescence-to-phase model...")
 fluor2phase_model_path = (
-    top_dir / "pretrained_models/AIMBL_Demo/fluor2phase_step668.ckpt"
+    top_dir / "pretrained_models/DLCourse/fluor2phase_step668.ckpt"
 )
 assert fluor2phase_model_path.exists(), (
     "Fluorescence-to-phase model checkpoint not found. Please check the path."

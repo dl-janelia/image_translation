@@ -1,0 +1,30 @@
+[project]
+name = "image-translation-exercise"
+version = "0.0.0"
+description = "DL@Janelia image translation (virtual staining) exercise — student environment"
+requires-python = ">=3.13"
+
+# All dependencies for the exercise live here — pyproject.toml is the single
+# source of truth. Bump the cytoland git ref below to upgrade VisCy.
+#
+# TODO(dl-janelia): once viscy/cytoland 0.5.0a* lands on PyPI, replace the
+# cytoland git URL with `"cytoland[metrics]>=0.5.0a1"`.
+dependencies = [
+    "cytoland[metrics] @ git+https://github.com/mehta-lab/VisCy.git@v0.5.0a1#subdirectory=applications/cytoland",
+    "cellpose",
+    "cmap",
+    "torchview",
+    "microssim",
+    "scikit-learn",
+    "torchmetrics[detection]",
+    "faster-coco-eval",
+    "jupyter",
+    "ipykernel",
+    "ipywidgets",
+    "jupytext",
+    "nbformat",
+    "nbconvert",
+]
+
+[tool.uv]
+package = false

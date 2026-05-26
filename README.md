@@ -28,7 +28,7 @@ This is an example of an image translation task. We will apply spatial and inten
 
 
 Checkout [VisCy](https://github.com/mehta-lab/VisCy) and the
-[cytoland](https://github.com/mehta-lab/VisCy/tree/modular-viscy-staging/applications/cytoland)
+[cytoland](https://github.com/mehta-lab/VisCy/tree/main/applications/cytoland)
 application — our deep learning pipeline for training and deploying computer
 vision models for image-based phenotyping, including the robust virtual
 staining of landmark organelles. VisCy exploits recent advances in data and
@@ -36,18 +36,7 @@ metadata formats ([OME-zarr](https://www.nature.com/articles/s41592-021-01326-w)
 and DL frameworks ([PyTorch Lightning](https://lightning.ai/) and
 [MONAI](https://monai.io/)).
 
-## Setup
-
-There are two setup scripts depending on your role:
-
-- **Students:** run [`setup_student.sh`](setup_student.sh) — creates a per-user
-  Python venv, registers a Jupyter kernel, and downloads the data only if it
-  isn't already on disk.
-- **TAs / course operators:** run [`setup_TA.sh`](setup_TA.sh) before the
-  course to pre-stage the ~14 GB of data + checkpoint onto a shared
-  filesystem so each student doesn't have to re-download it.
-
-### Student
+## Setup — Students
 
 Clone this repository and run the setup script from the repo root:
 
@@ -57,6 +46,11 @@ cd image_translation
 bash setup_student.sh
 ```
 
+That's it — the script creates a `./.venv`, installs everything in
+[`pyproject.toml`](pyproject.toml), registers a Jupyter kernel called
+`06_image_translation`, and downloads the data (~14 GB) into
+`$DATA_ROOT` (default `~/data/06_image_translation/`).
+
 If your TA pre-staged the data on a shared mount, point `DATA_ROOT` at it to
 skip the download:
 
@@ -64,89 +58,79 @@ skip the download:
 DATA_ROOT=/path/to/shared/image_translation bash setup_student.sh
 ```
 
-The script will:
-
-- Install [`uv`](https://docs.astral.sh/uv/) if it isn't already on your PATH.
-- Create a Python 3.13 virtual environment at `./.venv`.
-- Install `cytoland` + `viscy` and the tutorial extras
-  (`cellpose`, `torchview`, `microssim`, `jupyter`, `ipykernel`,
-  `ipywidgets`, `jupytext`, `nbformat`, `nbconvert`).
-  Today the new modular packages
-  (`viscy-data`, `viscy-models`, `viscy-transforms`, `viscy-utils`, `cytoland`)
-  are installed straight from the [VisCy](https://github.com/mehta-lab/VisCy)
-  `modular-viscy-staging` branch (uv workspace). Once a fixed alpha is
-  published, the script will switch to PyPI (`viscy>=0.5.0a*`). Override the
-  install ref any time with:
-  ```bash
-  VISCY_REF=main bash setup_student.sh        # or a tag, commit, branch, etc.
-  ```
-- Register the venv as a Jupyter kernel named **`06_image_translation`**
-  (display name: *Python (06_image_translation)*).
-- Download the training / test OME-Zarr datasets and the VSCyto2D
-  pretrained checkpoint into `$DATA_ROOT`
-  (default `~/data/06_image_translation/`), unless the data is already
-  present.
-
 Everything is self-contained inside this folder — no conda required.
 
-### TA / course operator
+## Setup — TAs
 
-Run once before the course, ideally targeting a shared mount:
+Pre-staging data, validating the install, and smoke-testing the notebook
+on a course node are all handled by [`setup_TA.sh`](setup_TA.sh). See its
+header comment for usage:
 
 ```bash
-cd image_translation
-DATA_ROOT=/path/to/shared/image_translation bash setup_TA.sh
+bash setup_TA.sh --help
 ```
 
-This downloads the OME-Zarr v3 datasets (~14 GB) and the pretrained
-checkpoint into `$DATA_ROOT`. Typical runtime is 20–40 min. It does
-**not** create a Python environment — students do that themselves with
-`setup_student.sh`.
+Typical pre-course workflow on a shared mount:
 
-Students then reuse the staged copy with:
+```bash
+DATA_ROOT=/path/to/shared/image_translation bash setup_TA.sh --all
+```
+
+Then tell students to run:
 
 ```bash
 DATA_ROOT=/path/to/shared/image_translation bash setup_student.sh
 ```
 
-## Use VSCode
+## Run the exercise
 
-Install VSCode and the Python + Jupyter extensions, then open
-[`solution.py`](solution.py) and pick the **Python (06_image_translation)**
-kernel from the top-right kernel selector. The script uses
-[cell mode](https://code.visualstudio.com/docs/python/jupyter-support-py), so
-you can execute each `# %%` block interactively.
+After `setup_student.sh` finishes, you have three equivalent entry points.
+Pick whichever you're most comfortable with — they all use the same kernel
+and the same data.
 
-## Use Jupyter Notebook
-
-The exercise / solution notebooks are regenerated from `solution.py` by a
-GitHub Action on every push, but you can also build them locally:
+### Option A — Jupyter Lab (recommended for this course)
 
 ```bash
-bash prepare-exercise.sh         # regenerates exercise.ipynb + solution.ipynb
-./.venv/bin/jupyter lab          # then pick the Python (06_image_translation) kernel
+./.venv/bin/jupyter lab            # opens in your browser
 ```
 
-If the kernel is missing (e.g. you reinstalled the venv), re-register it:
+In the file browser, double-click **`exercise.ipynb`** (the version with
+TODOs). At the top right, pick the **Python (06_image_translation)** kernel,
+then run cells top-to-bottom with `Shift+Enter`. If you get stuck, peek at
+**`solution.ipynb`** for the filled-in answer to that block.
+
+### Option B — VSCode (notebook or cell mode)
+
+Install VSCode plus the Python + Jupyter extensions. Then either:
+
+- Open **`exercise.ipynb`** directly (it behaves like Jupyter Lab inside
+  VSCode), or
+- Open **`solution.py`** and use
+  [cell mode](https://code.visualstudio.com/docs/python/jupyter-support-py)
+  to run each `# %%` block interactively (`Ctrl+Enter` / `Shift+Enter`).
+
+Either way, pick **Python (06_image_translation)** as the kernel from the
+top-right kernel selector.
+
+### Regenerating the notebooks
+
+`exercise.ipynb` and `solution.ipynb` are regenerated from `solution.py` by a
+GitHub Action on every push. To rebuild them locally (after editing
+`solution.py`):
+
+```bash
+bash prepare-exercise.sh
+```
+
+### Re-registering the Jupyter kernel
+
+If the kernel is missing from the dropdown (e.g. you reinstalled the venv):
 
 ```bash
 ./.venv/bin/python -m ipykernel install --user \
     --name 06_image_translation \
     --display-name "Python (06_image_translation)"
 ```
-
-## Troubleshooting
-
-- **Install fails with `Because only viscy<=0.4.0 is available...`** — your
-  shell ignored `VISCY_REF`. Re-run from a fresh shell with the env var
-  exported: `VISCY_REF=modular-viscy-staging bash setup_student.sh`.
-- **`AttributeError: 'ImageArray' object has no attribute 'name'`** — you're
-  on the old `v0.5.0a0` tag, which is broken against current iohub. The
-  default `VISCY_REF=modular-viscy-staging` already avoids this; if you
-  pinned a tag, switch back to the branch.
-- **No GPU on your machine** — the data and model load on CPU too, but
-  Part 2 training is impractical without one. Use a course-provided GPU
-  node.
 
 ## References
 
