@@ -2294,20 +2294,36 @@ print(f"Pearson Correlation: {pearson_phase:.3f}")
 # Visualize the fluorescence to phase transformation results
 # TODO: Visualize the fluorescence to phase transformation results. Modify is as you see fit.
 
+# Center-crop to 512x512 — at 20x mag the full 2048x2048 FOV makes each
+# cell ~50 pixels across and the comparison is hard to read.
+DISPLAY_CROP = 512
+
+
+def _center_crop(img: np.ndarray, size: int = DISPLAY_CROP) -> np.ndarray:
+    h, w = img.shape[-2:]
+    y0 = max(0, (h - size) // 2)
+    x0 = max(0, (w - size) // 2)
+    return img[..., y0 : y0 + size, x0 : x0 + size]
+
+
 fig, axs = plt.subplots(2, 3, figsize=(15, 10))
 
-axs[0, 0].imshow(fluor_input[0, 0, 0], cmap="gray")
+axs[0, 0].imshow(_center_crop(fluor_input[0, 0, 0]), cmap="gray")
 axs[0, 0].set_title("Input: Nuclei Channel")
-axs[0, 1].imshow(fluor_input[0, 1, 0], cmap="gray")
+axs[0, 1].imshow(_center_crop(fluor_input[0, 1, 0]), cmap="gray")
 axs[0, 1].set_title("Input: Membrane Channel")
-axs[0, 2].imshow(fluor_input[0, 0, 0] + fluor_input[0, 1, 0], cmap="gray")
+axs[0, 2].imshow(
+    _center_crop(fluor_input[0, 0, 0] + fluor_input[0, 1, 0]), cmap="gray"
+)
 axs[0, 2].set_title("Combined Fluorescence\n(Nuclei + Membrane)")
 
-axs[1, 0].imshow(target_phase, cmap="gray")
+axs[1, 0].imshow(_center_crop(target_phase), cmap="gray")
 axs[1, 0].set_title("Target Phase Image")
-axs[1, 1].imshow(predicted_phase, cmap="gray")
+axs[1, 1].imshow(_center_crop(predicted_phase), cmap="gray")
 axs[1, 1].set_title(f"Predicted Phase\nSSIM: {ssim_phase:.3f}")
-axs[1, 2].imshow(np.abs(target_phase - predicted_phase), cmap="magma")
+axs[1, 2].imshow(
+    _center_crop(np.abs(target_phase - predicted_phase)), cmap="magma"
+)
 axs[1, 2].set_title("Absolute Difference\n|Target - Predicted|")
 
 for ax in axs.flat:
