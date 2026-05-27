@@ -417,7 +417,17 @@ data_module = HCSDataModule(
     batch_size=BATCH_SIZE,
     num_workers=0,
     yx_patch_size=(256, 256),  # larger patch size makes it easy to see augmentations.
-    augmentations=[],  # Turn off augmentation for now.
+    # Crop to yx_patch_size so the visualization batch is 256x256, not the
+    # full 2048x2048 FOV — otherwise this single un-augmented batch would
+    # pin several GB of GPU memory through the rest of the notebook.
+    # No random augmentations yet (rotations / noise / contrast come in
+    # Task 1.3).
+    augmentations=[
+        CenterSpatialCropd(
+            keys=source_channel + target_channel,
+            roi_size=(1, 256, 256),
+        ),
+    ],
     normalizations=[],  # Turn off normalization for now.
 )
 # #######################
@@ -460,7 +470,17 @@ data_module = HCSDataModule(
     batch_size=BATCH_SIZE,
     num_workers=0,
     yx_patch_size=(256, 256),  # larger patch size makes it easy to see augmentations.
-    augmentations=[],  # Turn off augmentation for now.
+    # Crop to yx_patch_size so the visualization batch is 256x256, not the
+    # full 2048x2048 FOV — otherwise this single un-augmented batch would
+    # pin several GB of GPU memory through the rest of the notebook.
+    # No random augmentations yet (rotations / noise / contrast come in
+    # Task 1.3).
+    augmentations=[
+        CenterSpatialCropd(
+            keys=source_channel + target_channel,
+            roi_size=(1, 256, 256),
+        ),
+    ],
     normalizations=[],  # Turn off normalization for now.
 )
 
@@ -821,6 +841,8 @@ phase2fluor_2D_data = HCSDataModule(
     normalizations=normalizations,
 )
 phase2fluor_2D_data.setup("fit")
+
+
 # fast_dev_run runs a single batch of data through the model to check for errors.
 trainer = VisCyTrainer(
     accelerator="gpu", devices=[GPU_ID], precision="16-mixed", fast_dev_run=True
