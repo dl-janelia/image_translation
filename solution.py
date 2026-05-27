@@ -415,7 +415,7 @@ data_module = HCSDataModule(
     target_channel=target_channel,
     split_ratio=0.8,
     batch_size=BATCH_SIZE,
-    num_workers=4,
+    num_workers=0,
     yx_patch_size=(256, 256),  # larger patch size makes it easy to see augmentations.
     augmentations=[],  # Turn off augmentation for now.
     normalizations=[],  # Turn off normalization for now.
@@ -458,7 +458,7 @@ data_module = HCSDataModule(
     target_channel=target_channel,
     split_ratio=0.8,
     batch_size=BATCH_SIZE,
-    num_workers=4,
+    num_workers=0,
     yx_patch_size=(256, 256),  # larger patch size makes it easy to see augmentations.
     augmentations=[],  # Turn off augmentation for now.
     normalizations=[],  # Turn off normalization for now.
@@ -815,7 +815,7 @@ phase2fluor_2D_data = HCSDataModule(
     z_window_size=1,
     split_ratio=0.8,
     batch_size=BATCH_SIZE,
-    num_workers=4,
+    num_workers=0,
     yx_patch_size=YX_PATCH_SIZE,
     augmentations=augmentations,
     normalizations=normalizations,
@@ -881,7 +881,7 @@ phase2fluor_2D_data = HCSDataModule(
     z_window_size=1,
     split_ratio=0.8,
     batch_size=BATCH_SIZE,
-    num_workers=4,
+    num_workers=0,
     yx_patch_size=YX_PATCH_SIZE,
     augmentations=augmentations,
     normalizations=normalizations,
@@ -1179,7 +1179,7 @@ test_data = HCSDataModule(
     target_channel=target_channel,
     z_window_size=1,
     batch_size=1,
-    num_workers=4,
+    num_workers=0,
 )
 test_data.setup("test")
 
@@ -2137,7 +2137,7 @@ test_data_fluor2phase = HCSDataModule(
     target_channel=target_channel_labelfree,
     z_window_size=1,
     batch_size=1,
-    num_workers=4,
+    num_workers=0,
 )
 test_data_fluor2phase.setup("test")
 
@@ -2236,7 +2236,7 @@ test_data_fluor2phase = HCSDataModule(
     target_channel=target_channel_labelfree,
     z_window_size=1,
     batch_size=1,
-    num_workers=4,
+    num_workers=0,
 )
 test_data_fluor2phase.setup("test")
 
@@ -2860,7 +2860,7 @@ phase2fluor_2D_data = HCSDataModule(
     z_window_size=1,
     split_ratio=0.8,
     batch_size=1,
-    num_workers=4,
+    num_workers=0,
     yx_patch_size=YX_PATCH_SIZE,
     augmentations=[],
     normalizations=normalizations,
