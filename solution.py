@@ -838,6 +838,16 @@ phase2fluor_2D_data = HCSDataModule(
     num_workers=0,
     yx_patch_size=YX_PATCH_SIZE,
     augmentations=augmentations,
+    # val_augmentations defaults to empty, which means validation batches are
+    # full FOVs (~2048x2048). That's far too big for the model and blows up
+    # GPU memory on 15 GB T4s. Apply a center crop on val so val batches
+    # match the model's expected yx_patch_size.
+    val_augmentations=[
+        CenterSpatialCropd(
+            keys=source_channel + target_channel,
+            roi_size=(1, YX_PATCH_SIZE[0], YX_PATCH_SIZE[1]),
+        ),
+    ],
     normalizations=normalizations,
 )
 phase2fluor_2D_data.setup("fit")
@@ -906,6 +916,16 @@ phase2fluor_2D_data = HCSDataModule(
     num_workers=0,
     yx_patch_size=YX_PATCH_SIZE,
     augmentations=augmentations,
+    # val_augmentations defaults to empty, which means validation batches are
+    # full FOVs (~2048x2048). That's far too big for the model and blows up
+    # GPU memory on 15 GB T4s. Apply a center crop on val so val batches
+    # match the model's expected yx_patch_size.
+    val_augmentations=[
+        CenterSpatialCropd(
+            keys=source_channel + target_channel,
+            roi_size=(1, YX_PATCH_SIZE[0], YX_PATCH_SIZE[1]),
+        ),
+    ],
     normalizations=normalizations,
 )
 # #######################
