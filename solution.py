@@ -1055,8 +1055,8 @@ steps_per_epoch = n_samples // BATCH_SIZE  # steps per epoch.
 # ##### TODO ########
 # #######################
 # How many passes over the training set should we run? Pick a value
-# (80-100 is a reasonable starting point for this dataset and model
-# size) and assign it to `n_epochs` below. You can monitor training
+# (30-40 is a reasonable starting point on the course AWS T4 GPUs —
+# each epoch is ~1.5 min, so ~45-60 min total). You can monitor training
 # progress in TensorBoard; if loss plateaus early, fewer epochs are
 # enough — if it's still improving at the end, increase it.
 n_epochs = ...  # TODO
@@ -1087,7 +1087,7 @@ GPU_ID = 0
 
 n_samples = len(phase2fluor_2D_data.train_dataset)
 steps_per_epoch = n_samples // BATCH_SIZE
-n_epochs = 80
+n_epochs = 30
 
 trainer = VisCyTrainer(
     accelerator="gpu",
