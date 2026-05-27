@@ -1299,25 +1299,13 @@ test_metrics.boxplot(
 
 # %%
 # Plot the predicted image vs target image.
-channel_titles = [
-    "Phase",
-    "Target Nuclei",
-    "Target Membrane",
-    "Predicted Nuclei",
-    "Predicted Membrane",
-]
-fig, axes = plt.subplots(5, 1, figsize=(20, 20))
+# Layout: 2 rows x 3 columns — phase input on the left, ground truth
+# (real fluorescence) on the top row, virtual staining (prediction) on
+# the bottom row. Eye-friendly side-by-side comparison.
+fig, axes = plt.subplots(2, 3, figsize=(18, 12))
 
-# Get a writer to output the images into tensorboard and plot the source, predictions and target images
 for i, sample in enumerate(test_data.test_dataloader()):
-    # Plot the phase image
     phase_image = sample["source"]
-    channel_image = phase_image[0, 0, 0]
-    p_low, p_high = np.percentile(channel_image, (0.5, 99.5))
-    channel_image = np.clip(channel_image, p_low, p_high)
-    axes[0].imshow(channel_image, cmap="gray")
-    axes[0].axis("off")
-    axes[0].set_title(channel_titles[0])
 
     with torch.inference_mode():  # turn off gradient computation.
         predicted_image = (
@@ -1333,25 +1321,23 @@ for i, sample in enumerate(test_data.test_dataloader()):
     predicted_membrane = process_image(predicted_image[1, 0])
     target_nuclei = process_image(target_image[0, 0])
     target_membrane = process_image(target_image[1, 0])
-    # Concatenate all images side by side
-    combined_image = np.concatenate(
-        (
-            phase_raw,
-            predicted_nuclei,
-            predicted_membrane,
-            target_nuclei,
-            target_membrane,
-        ),
-        axis=1,
-    )
 
-    # Plot the phase,target nuclei, target membrane, predicted nuclei, predicted membrane
-    axes[1].imshow(target_nuclei, cmap="gray")
-    axes[2].imshow(target_membrane, cmap="gray")
-    axes[3].imshow(predicted_nuclei, cmap="gray")
-    axes[4].imshow(predicted_membrane, cmap="gray")
+    # Row 0: input phase, target nuclei (real), target membrane (real)
+    axes[0, 0].imshow(phase_raw, cmap="gray")
+    axes[0, 0].set_title("Phase (input)")
+    axes[0, 1].imshow(target_nuclei, cmap="gray")
+    axes[0, 1].set_title("Nuclei — fluorescence (target)")
+    axes[0, 2].imshow(target_membrane, cmap="gray")
+    axes[0, 2].set_title("Membrane — fluorescence (target)")
 
-    for ax in axes:
+    # Row 1: blank under phase, predicted nuclei, predicted membrane
+    axes[1, 0].axis("off")
+    axes[1, 1].imshow(predicted_nuclei, cmap="gray")
+    axes[1, 1].set_title("Nuclei — virtual staining (predicted)")
+    axes[1, 2].imshow(predicted_membrane, cmap="gray")
+    axes[1, 2].set_title("Membrane — virtual staining (predicted)")
+
+    for ax in axes.flat:
         ax.axis("off")
     plt.tight_layout()
     plt.show()
