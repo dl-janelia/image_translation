@@ -1768,10 +1768,16 @@ with tqdm(total=total_positions, desc="Processing FOVs") as pbar:
         else:
             Y_slice, X_slice = slice(None), slice(None)
         # Getting the arrays and the center slices
-        phase_image = pos.data[:, phase_cidx : phase_cidx + 1, Z_slice, Y_slice, X_slice]
+        phase_image = pos.data[
+            :, phase_cidx : phase_cidx + 1, Z_slice, Y_slice, X_slice
+        ]
         target_nucleus = pos.data[0, nuc_cidx : nuc_cidx + 1, Z_slice, Y_slice, X_slice]
-        target_membrane = pos.data[0, mem_cidx : mem_cidx + 1, Z_slice, Y_slice, X_slice]
-        target_nuc_label = pos.data[0, nuc_label_cidx : nuc_label_cidx + 1, Z_slice, Y_slice, X_slice]
+        target_membrane = pos.data[
+            0, mem_cidx : mem_cidx + 1, Z_slice, Y_slice, X_slice
+        ]
+        target_nuc_label = pos.data[
+            0, nuc_label_cidx : nuc_label_cidx + 1, Z_slice, Y_slice, X_slice
+        ]
 
         # normalize the phase
         phase_image = normalize_fov(phase_image)
@@ -2115,9 +2121,7 @@ plt.show()
 
 # %%
 # Path to the pretrained fluorescence to phase model checkpoint
-fluor2phase_model_path = (
-    top_dir / "pretrained_models/DLCourse/fluor2phase_step668.ckpt"
-)
+fluor2phase_model_path = top_dir / "pretrained_models/DLCourse/fluor2phase_step668.ckpt"
 
 
 # %% tags=["task"]
@@ -2237,9 +2241,7 @@ print(
 print("In practice, load a pretrained checkpoint for meaningful results")
 
 print("\nLoading pretrained fluorescence-to-phase model...")
-fluor2phase_model_path = (
-    top_dir / "pretrained_models/DLCourse/fluor2phase_step668.ckpt"
-)
+fluor2phase_model_path = top_dir / "pretrained_models/DLCourse/fluor2phase_step668.ckpt"
 assert fluor2phase_model_path.exists(), (
     "Fluorescence-to-phase model checkpoint not found. Please check the path."
 )
@@ -2312,18 +2314,14 @@ axs[0, 0].imshow(_center_crop(fluor_input[0, 0, 0]), cmap="gray")
 axs[0, 0].set_title("Input: Nuclei Channel")
 axs[0, 1].imshow(_center_crop(fluor_input[0, 1, 0]), cmap="gray")
 axs[0, 1].set_title("Input: Membrane Channel")
-axs[0, 2].imshow(
-    _center_crop(fluor_input[0, 0, 0] + fluor_input[0, 1, 0]), cmap="gray"
-)
+axs[0, 2].imshow(_center_crop(fluor_input[0, 0, 0] + fluor_input[0, 1, 0]), cmap="gray")
 axs[0, 2].set_title("Combined Fluorescence\n(Nuclei + Membrane)")
 
 axs[1, 0].imshow(_center_crop(target_phase), cmap="gray")
 axs[1, 0].set_title("Target Phase Image")
 axs[1, 1].imshow(_center_crop(predicted_phase), cmap="gray")
 axs[1, 1].set_title(f"Predicted Phase\nSSIM: {ssim_phase:.3f}")
-axs[1, 2].imshow(
-    _center_crop(np.abs(target_phase - predicted_phase)), cmap="magma"
-)
+axs[1, 2].imshow(_center_crop(np.abs(target_phase - predicted_phase)), cmap="magma")
 axs[1, 2].set_title("Absolute Difference\n|Target - Predicted|")
 
 for ax in axs.flat:
@@ -2896,11 +2894,11 @@ normalizations = [
     ),
 ]
 
-# Re-load the dataloader
-# val_augmentations adds a CenterSpatialCropd so the dataloader yields
-# YX_PATCH_SIZE crops (512x512) instead of full 2048x2048 FOVs. Without
-# this the model forward pass would run on full FOVs through the encoder
-# even though we only visualize a 512x512 window below.
+# Re-load the dataloader. NOTE: viscy's HCSDataModule applies only
+# `normalizations` to the test pipeline — `augmentations` and
+# `val_augmentations` are both ignored for setup("test"). So the test
+# dataloader yields full 2048x2048 FOVs; the perturbation cells below
+# explicitly slice down to a window via y_slice / x_slice.
 phase2fluor_2D_data = HCSDataModule(
     data_path,
     source_channel=source_channel,
@@ -2911,12 +2909,6 @@ phase2fluor_2D_data = HCSDataModule(
     num_workers=0,
     yx_patch_size=YX_PATCH_SIZE,
     augmentations=[],
-    val_augmentations=[
-        CenterSpatialCropd(
-            keys=source_channel + target_channel,
-            roi_size=(1, YX_PATCH_SIZE[0], YX_PATCH_SIZE[1]),
-        ),
-    ],
     normalizations=normalizations,
 )
 phase2fluor_2D_data.setup("test")
@@ -2924,11 +2916,12 @@ phase2fluor_2D_data.setup("test")
 # ########## TODO ##############
 batch_number = 3  # Change this to see different batches of data
 # #######################
-# The data module now returns YX_PATCH_SIZE crops (val_augmentations does
-# the center-crop), so y_slice / x_slice can pass through the whole batch
-# tensor.
-y_slice = slice(None)
-x_slice = slice(None)
+# viscy's HCSDataModule applies neither `augmentations` nor
+# `val_augmentations` to the test pipeline, so the dataloader yields
+# full 2048x2048 FOVs. Slice down to a 256*n x 256*n window centered
+# on the FOV for visualization.
+y_slice = slice(Y // 2, Y // 2 + 256 * n)
+x_slice = slice(X // 2, X // 2 + 256 * n)
 
 # Iterate through the test dataloader to get the desired batch
 i = 0
@@ -2969,11 +2962,12 @@ plt.show()
 n = 3
 # ##############################
 # Center cropping the image
-# The data module now returns YX_PATCH_SIZE crops (val_augmentations does
-# the center-crop), so y_slice / x_slice can pass through the whole batch
-# tensor.
-y_slice = slice(None)
-x_slice = slice(None)
+# viscy's HCSDataModule applies neither `augmentations` nor
+# `val_augmentations` to the test pipeline, so the dataloader yields
+# full 2048x2048 FOVs. Slice down to a 256*n x 256*n window centered
+# on the FOV for visualization. Feel free to change the window size.
+y_slice = slice(Y // 2, Y // 2 + 256 * n)
+x_slice = slice(X // 2, X // 2 + 256 * n)
 
 f, ax = plt.subplots(3, 2, figsize=(8, 12))
 
@@ -3017,11 +3011,12 @@ ax[2, 1].imshow(pred_composite[0])
 n = 3
 # ##############################
 # Center cropping the image
-# The data module now returns YX_PATCH_SIZE crops (val_augmentations does
-# the center-crop), so y_slice / x_slice can pass through the whole batch
-# tensor.
-y_slice = slice(None)
-x_slice = slice(None)
+# viscy's HCSDataModule applies neither `augmentations` nor
+# `val_augmentations` to the test pipeline, so the dataloader yields
+# full 2048x2048 FOVs. Slice down to a 256*n x 256*n window centered
+# on the FOV for visualization. Feel free to change the window size.
+y_slice = slice(Y // 2, Y // 2 + 256 * n)
+x_slice = slice(X // 2, X // 2 + 256 * n)
 
 f, ax = plt.subplots(3, 2, figsize=(8, 12))
 
@@ -3072,6 +3067,10 @@ ax[2, 1].imshow(pred_composite[0])
 
 # %% tags=["task"]
 n = 3
+# viscy's HCSDataModule applies neither `augmentations` nor
+# `val_augmentations` to the test pipeline, so the dataloader yields
+# full 2048x2048 FOVs. Slice down to a 256*n x 256*n window centered
+# on the FOV for visualization. Feel free to change the window size.
 y_slice = slice(Y // 2, Y // 2 + 256 * n)
 x_slice = slice(X // 2, X // 2 + 256 * n)
 f, ax = plt.subplots(3, 2, figsize=(8, 12))
@@ -3110,6 +3109,10 @@ ax[2, 1].imshow(pred_composite[0])
 
 # %% tags=["solution"]
 n = 3
+# viscy's HCSDataModule applies neither `augmentations` nor
+# `val_augmentations` to the test pipeline, so the dataloader yields
+# full 2048x2048 FOVs. Slice down to a 256*n x 256*n window centered
+# on the FOV for visualization. Feel free to change the window size.
 y_slice = slice(Y // 2, Y // 2 + 256 * n)
 x_slice = slice(X // 2, X // 2 + 256 * n)
 f, ax = plt.subplots(3, 2, figsize=(8, 12))
@@ -3157,6 +3160,10 @@ ax[2, 1].imshow(pred_composite[0])
 # This plots all perturbations
 
 n = 3
+# viscy's HCSDataModule applies neither `augmentations` nor
+# `val_augmentations` to the test pipeline, so the dataloader yields
+# full 2048x2048 FOVs. Slice down to a 256*n x 256*n window centered
+# on the FOV for visualization. Feel free to change the window size.
 y_slice = slice(Y // 2, Y // 2 + 256 * n)
 x_slice = slice(X // 2, X // 2 + 256 * n)
 f, ax = plt.subplots(6, 2, figsize=(8, 12))
