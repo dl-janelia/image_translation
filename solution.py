@@ -2881,6 +2881,10 @@ normalizations = [
 ]
 
 # Re-load the dataloader
+# val_augmentations adds a CenterSpatialCropd so the dataloader yields
+# YX_PATCH_SIZE crops (512x512) instead of full 2048x2048 FOVs. Without
+# this the model forward pass would run on full FOVs through the encoder
+# even though we only visualize a 512x512 window below.
 phase2fluor_2D_data = HCSDataModule(
     data_path,
     source_channel=source_channel,
@@ -2891,6 +2895,12 @@ phase2fluor_2D_data = HCSDataModule(
     num_workers=0,
     yx_patch_size=YX_PATCH_SIZE,
     augmentations=[],
+    val_augmentations=[
+        CenterSpatialCropd(
+            keys=source_channel + target_channel,
+            roi_size=(1, YX_PATCH_SIZE[0], YX_PATCH_SIZE[1]),
+        ),
+    ],
     normalizations=normalizations,
 )
 phase2fluor_2D_data.setup("test")
@@ -2898,8 +2908,11 @@ phase2fluor_2D_data.setup("test")
 # ########## TODO ##############
 batch_number = 3  # Change this to see different batches of data
 # #######################
-y_slice = slice(Y // 2 - 256 * n // 2, Y // 2 + 256 * n // 2)
-x_slice = slice(X // 2 - 256 * n // 2, X // 2 + 256 * n // 2)
+# The data module now returns YX_PATCH_SIZE crops (val_augmentations does
+# the center-crop), so y_slice / x_slice can pass through the whole batch
+# tensor.
+y_slice = slice(None)
+x_slice = slice(None)
 
 # Iterate through the test dataloader to get the desired batch
 i = 0
@@ -2940,8 +2953,11 @@ plt.show()
 n = 3
 # ##############################
 # Center cropping the image
-y_slice = slice(Y // 2 - 256 * n // 2, Y // 2 + 256 * n // 2)
-x_slice = slice(X // 2 - 256 * n // 2, X // 2 + 256 * n // 2)
+# The data module now returns YX_PATCH_SIZE crops (val_augmentations does
+# the center-crop), so y_slice / x_slice can pass through the whole batch
+# tensor.
+y_slice = slice(None)
+x_slice = slice(None)
 
 f, ax = plt.subplots(3, 2, figsize=(8, 12))
 
@@ -2985,8 +3001,11 @@ ax[2, 1].imshow(pred_composite[0])
 n = 3
 # ##############################
 # Center cropping the image
-y_slice = slice(Y // 2 - 256 * n // 2, Y // 2 + 256 * n // 2)
-x_slice = slice(X // 2 - 256 * n // 2, X // 2 + 256 * n // 2)
+# The data module now returns YX_PATCH_SIZE crops (val_augmentations does
+# the center-crop), so y_slice / x_slice can pass through the whole batch
+# tensor.
+y_slice = slice(None)
+x_slice = slice(None)
 
 f, ax = plt.subplots(3, 2, figsize=(8, 12))
 
