@@ -169,10 +169,17 @@ from viscy_utils.trainer import VisCyTrainer
 seed_everything(42, workers=True)
 
 # Paths to data and log directory.
-# DATA_ROOT (set by setup_student.sh / setup_TA.sh) points directly at the
-# folder containing training/, test/, pretrained_models/. When unset, fall
-# back to the default ~/data/06_image_translation layout.
-top_dir = Path(os.environ.get("DATA_ROOT", "~/data/06_image_translation")).expanduser()
+# DATA_ROOT (set by setup_student.sh / setup_TA.sh) is the *parent* directory;
+# the exercise data lives in DATA_ROOT/KERNEL_NAME (the folder containing
+# training/, test/, pretrained_models/). When unset, fall back to the default
+# ~/data/06_image_translation layout.
+KERNEL_NAME = os.environ.get("KERNEL_NAME", "06_image_translation")
+data_root = Path(os.environ.get("DATA_ROOT", "~/data")).expanduser()
+top_dir = data_root / KERNEL_NAME
+# Backward compatibility: if DATA_ROOT was set to the data dir directly (the
+# old convention) rather than its parent, use it as-is.
+if not top_dir.exists() and (data_root / "training").exists():
+    top_dir = data_root
 
 # Path to the training data
 data_path = top_dir / "training/a549_hoechst_cellmask_train_val.zarr"
@@ -449,18 +456,21 @@ batch = next(iter(train_dataloader))
 log_batch_tensorboard(batch, 0, writer, "augmentation/none")
 writer.close()
 # %% tags=["solution"]
-# #######################
-# ##### SOLUTION ########
-# #######################
 
 BATCH_SIZE = 16
 # 4 is a perfectly reasonable batch size
 # (batch size does not have to be a power of 2)
 # See: https://sebastianraschka.com/blog/2022/batch-size-2.html
 
+# #######################
+# ##### SOLUTION ########
+# #######################
 source_channel = ["Phase3D"]
 target_channel = ["Nucl", "Mem"]
 
+# #######################
+# ##### SOLUTION ########
+# #######################
 data_module = HCSDataModule(
     data_path,
     z_window_size=1,
@@ -484,6 +494,9 @@ data_module = HCSDataModule(
     normalizations=[],  # Turn off normalization for now.
 )
 
+# #######################
+# ##### SOLUTION ########
+# #######################
 # Setup the data_module to fit. HINT: data_module.setup()
 data_module.setup("fit")
 
@@ -647,6 +660,9 @@ augmentations = [
         num_samples=2,
         w_key=target_channel[0],
     ),
+    # #######################
+    # ##### SOLUTION ########
+    # #######################
     RandAffined(
         keys=source_channel + target_channel,
         rotate_range=[3.14, 0.0, 0.0],
@@ -657,6 +673,9 @@ augmentations = [
     ),
     RandAdjustContrastd(keys=source_channel, prob=0.5, gamma=(0.8, 1.2)),
     RandScaleIntensityd(keys=source_channel, factors=0.5, prob=0.5),
+    # #######################
+    # ##### SOLUTION ########
+    # #######################
     RandGaussianNoised(keys=source_channel, prob=0.5, mean=0.0, std=0.3),
     RandGaussianSmoothd(
         keys=source_channel,
@@ -665,6 +684,9 @@ augmentations = [
         sigma_z=(0.0, 0.0),
         prob=0.5,
     ),
+    # #######################
+    # ##### SOLUTION ########
+    # #######################
     # Final center crop down to yx_patch_size. The rotated 384x384 patch has
     # black corners from RandAffined's zero padding; cropping to the central
     # 256x256 removes them before the patch reaches the model. Without this
@@ -1087,6 +1109,9 @@ GPU_ID = 0
 
 n_samples = len(phase2fluor_2D_data.train_dataset)
 steps_per_epoch = n_samples // BATCH_SIZE
+# #######################
+# ##### SOLUTION ########
+# #######################
 n_epochs = 30
 
 trainer = VisCyTrainer(
@@ -1601,14 +1626,15 @@ sample_nucleus = sample_pos.data[0, nuc_cidx : nuc_cidx + 1, Z_slice]
 sample_membrane = sample_pos.data[0, mem_cidx : mem_cidx + 1, Z_slice]
 
 # Crop 300x300 pixels from center
-center_y, center_x = sample_nucleus.shape[2] // 2, sample_nucleus.shape[3] // 2
 crop_size = 300
+
+center_y, center_x = sample_nucleus.shape[2] // 2, sample_nucleus.shape[3] // 2
 y_start = max(0, center_y - crop_size // 2)
 y_end = min(sample_nucleus.shape[2], center_y + crop_size // 2)
 x_start = max(0, center_x - crop_size // 2)
 x_end = min(sample_nucleus.shape[3], center_x + crop_size // 2)
 
-# Crop fluorescence data
+# Crop fluorescence data and normalize
 sample_nucleus_crop = min_max_scale(sample_nucleus[0, 0, y_start:y_end, x_start:x_end])
 sample_membrane_crop = min_max_scale(
     sample_membrane[0, 0, y_start:y_end, x_start:x_end]
@@ -1628,6 +1654,8 @@ predicted_mem_crop = min_max_scale(
 # Generate virtual stained data from pretrained model
 with torch.inference_mode():
     predicted_image_pretrained = pretrained_phase2fluor(sample_phase_tensor)
+
+# Convert to numpy and normalize
 predicted_nuc_pretrained_crop = min_max_scale(
     predicted_image_pretrained.cpu().numpy()[0, 0, 0, y_start:y_end, x_start:x_end]
 )
@@ -2027,7 +2055,68 @@ Y, X = phase_image.shape[-2:]
 ######## TODO ##########
 # Modify the crop size and Y,X slicing to view different areas of the FOV
 
+crop = ...  # TODO: pick a crop size in pixels, e.g. 256
+
+# Center cropping the image
+y_slice = slice(Y // 2 - crop // 2, Y // 2 + crop // 2)
+x_slice = slice(X // 2 - crop // 2, X // 2 + crop // 2)
+#######################
+# Plotting side by side comparisons
+fig, axs = plt.subplots(4, 3, figsize=(15, 20))
+
+# First row: phase_image, target_nuc, target_mem
+axs[0, 0].imshow(phase_image[0, 0, y_slice, x_slice], cmap="gray")
+axs[0, 0].set_title("Phase Image")
+axs[0, 1].imshow(target_nuc[y_slice, x_slice], cmap="gray")
+axs[0, 1].set_title("Target Nucleus")
+axs[0, 2].imshow(target_mem[y_slice, x_slice], cmap="gray")
+axs[0, 2].set_title("Target Membrane")
+
+# Second row: target_nuc, pred_nuc_phase2fluor, pred_nuc_pretrained
+axs[1, 0].imshow(target_nuc[y_slice, x_slice], cmap="gray")
+axs[1, 0].set_title("Target Nucleus")
+axs[1, 1].imshow(predicted_nuc_phase2fluor[y_slice, x_slice], cmap="gray")
+axs[1, 1].set_title("Pred Nucleus Phase2Fluor")
+axs[1, 2].imshow(predicted_nuc_pretrained[y_slice, x_slice], cmap="gray")
+axs[1, 2].set_title("Pred Nucleus Pretrained")
+
+# Third row: target_mem, pred_mem_phase2fluor, pred_mem_pretrained
+axs[2, 0].imshow(target_mem[y_slice, x_slice], cmap="gray")
+axs[2, 0].set_title("Target Membrane")
+axs[2, 1].imshow(predicted_mem_phase2fluor[y_slice, x_slice], cmap="gray")
+axs[2, 1].set_title("Pred Membrane Phase2Fluor")
+axs[2, 2].imshow(predicted_mem_pretrained[y_slice, x_slice], cmap="gray")
+axs[2, 2].set_title("Pred Membrane Pretrained")
+
+# Fourth row: target_nuc, segment_nuc, segment_nuc2
+axs[3, 0].imshow(target_nuc[y_slice, x_slice], cmap="gray")
+axs[3, 0].set_title("Target Nucleus")
+axs[3, 1].imshow(
+    label2rgb(np.array(target_label[y_slice, x_slice], dtype="int")), cmap="gray"
+)
+axs[3, 1].set_title("Segmented Nucleus (Target)")
+axs[3, 2].imshow(
+    label2rgb(np.array(pred_label[y_slice, x_slice], dtype="int")), cmap="gray"
+)
+axs[3, 2].set_title("Segmented Nucleus")
+
+# Hide axes ticks
+for ax in axs.flat:
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+plt.tight_layout()
+plt.show()
+
+
+# %% tags=["solution"]
+
+# Get the shape of the 2D image
+Y, X = phase_image.shape[-2:]
+######## SOLUTION ##########
 crop = 256
+
+# Center cropping the image
 y_slice = slice(Y // 2 - crop // 2, Y // 2 + crop // 2)
 x_slice = slice(X // 2 - crop // 2, X // 2 + crop // 2)
 #######################
@@ -2158,10 +2247,28 @@ assert fluor2phase_model is not None, (
 fluor2phase_model.eval()
 
 # %% tags=["task"]
-# Test the fluorescence to phase model on our test data
+# Test the fluorescence to phase model on our test data.
+#
+# The goal of this cell: run the fluor->phase model on one test sample and
+# score the prediction against the ground-truth phase with two metrics you
+# already met in Task 2.3 — SSIM and Pearson correlation.
+#
+# We give you the data module and inference scaffolding; you fill in the
+# channel names, pull the arrays out of the batch, and compute the metrics.
 
-source_channel_fluor = ["TODO", "TODO"]
-target_channel_labelfree = ["TODO"]
+# rescale_intensity normalizes an image into the [0, 1] range so SSIM's
+# `data_range=1` is meaningful (same trick as the `rescale` helper in Task 2.3).
+from skimage.exposure import rescale_intensity
+
+# #######################
+# ##### TODO ########
+# #######################
+# TODO: This is the *reverse* task: fluorescence in, phase out.
+# HINT: run `test_data.channel_names` (or print it) to see the exact strings.
+#       The fluorescence channels are the nucleus + membrane labels; the
+#       label-free target is the phase channel.
+source_channel_fluor = ["TODO", "TODO"]  # e.g. nucleus + membrane
+target_channel_labelfree = ["TODO"]  # e.g. phase
 
 test_data_fluor2phase = HCSDataModule(
     test_data_path,
@@ -2173,41 +2280,65 @@ test_data_fluor2phase = HCSDataModule(
 )
 test_data_fluor2phase.setup("test")
 
-
-# Get a test sample
+# Get a single test sample (a dict with "source" and "target" keys).
 sample = next(iter(test_data_fluor2phase.test_dataloader()))
+# Uncomment to inspect what you're working with:
+# print(sample.keys())
+# print("source:", sample["source"].shape, "target:", sample["target"].shape)
 
 # #######################
 # ##### TODO ########
 # #######################
-# TODO: Extract the input channels (fluorescence) and target (phase) from `sample`.
-# HINT: HCSDataModule batches are dicts with keys "source" and "target".
-# HINT: Try `print(sample.keys())` and `print(sample["source"].shape)` to inspect.
+# TODO: Pull the fluorescence input and phase target out of `sample`.
+# HINT: `sample["source"]` and `sample["target"]` are torch tensors of shape
+#       (batch=1, channels, z=1, Y, X). Move the input to the model's device:
+#       `sample["source"].to(fluor2phase_model.device)`.
+fluor_input = ...  # TODO: sample["source"].to(fluor2phase_model.device)
+target_tensor = ...  # TODO: sample["target"]
 
-fluor_input = ...  # TODO: sample["source"]
-target_phase = ...  # TODO: sample["target"]
-
-# TODO: Make prediction with the fluorescence to phase model
-# NOTE: The `fluor2phase_model`, returns a tuple. Select the first item with `[0]`
+# TODO: Run the model. It returns a tuple, so take the first element with [0].
 with torch.inference_mode():
-    predicted_phase = ...
+    prediction = ...  # TODO: fluor2phase_model(fluor_input)[0]
+
+# Move the fluorescence input back to a numpy array on the CPU. The
+# visualization cell below plots `fluor_input[0, <channel>, 0]`, so it needs
+# to be numpy of shape (1, channels, z, Y, X) — not a tensor on the GPU.
+fluor_input = ...  # TODO: fluor_input.cpu().numpy()
 
 # #######################
 # ##### TODO ########
 # #######################
-# Calculate metrics between predicted and target phase
-# HINT: Use SSIM and Pearson correlation as in Task 2.3.
+# Now turn the tensors into 2D numpy arrays so we can score them.
+# HINT: `.cpu().numpy()` moves a tensor to a numpy array, then `.squeeze(0)`
+#       drops the batch dim. There is one channel and one z-slice, so index
+#       them out with `[0, 0]` to get a (Y, X) image. Do this for BOTH the
+#       target and the prediction.
+target_image = ...  # TODO: target_tensor.cpu().numpy().squeeze(0)[0, 0] -> (Y, X)
+predicted_image = ...  # TODO: prediction.cpu().numpy().squeeze(0)[0, 0]  -> (Y, X)
 
-# TODO: Normalize data range to 0-1
-###### YOUR CODE HERE ######
+# TODO: Rescale both images to the [0, 1] range (see Task 2.3).
+# HINT: rescale_intensity(img, out_range=(0, 1))
+target_phase = ...  # TODO
+predicted_phase = ...  # TODO
 
-# TODO: Calculate SSIM and Pearson correlation
-###### YOUR CODE HERE ######
+# TODO: Compute the two metrics, exactly as in Task 2.3:
+# HINT (SSIM):    structural_similarity(target_phase, predicted_phase, data_range=1)
+# HINT (Pearson): np.corrcoef(target_phase.flatten(), predicted_phase.flatten())[0, 1]
+ssim_phase = ...  # TODO
+pearson_phase = ...  # TODO
 
-# TODO: Print metrics
-print("Phase Reconstruction Metrics:")
-print(f"SSIM: {ssim_phase:.3f}")
-print(f"Pearson Correlation: {pearson_phase:.3f}")
+# Print metrics. Once your TODOs above are filled in, this reports your scores.
+# (Until then, the metric variables are still the `...` placeholder, so we show
+# a friendly nudge instead of crashing with a NameError.)
+if ssim_phase is Ellipsis or pearson_phase is Ellipsis:
+    print(
+        "Fill in the TODOs above so that `ssim_phase` and `pearson_phase` are "
+        "computed, then re-run this cell to see your metrics."
+    )
+else:
+    print("Phase Reconstruction Metrics:")
+    print(f"SSIM: {ssim_phase:.3f}")
+    print(f"Pearson Correlation: {pearson_phase:.3f}")
 
 
 # %% tags=["solution"]
@@ -2224,6 +2355,9 @@ print("Loading pretrained fluorescence-to-phase model...")
 # 2. Adjust the path accordingly
 
 # For demonstration, we'll create a model with the correct architecture
+# #######################
+# ##### SOLUTION ########
+# #######################
 fluor2phase_config = dict(
     in_channels=2,  # Nuclei + Membrane channels
     out_channels=1,  # Phase channel
@@ -2257,6 +2391,9 @@ fluor2phase_model.eval()
 # top-to-bottom even when earlier task-tagged cells are stripped).
 from skimage.exposure import rescale_intensity  # noqa: E402
 
+# #######################
+# ##### SOLUTION ########
+# #######################
 source_channel_fluor = ["Nucl", "Mem"]
 target_channel_labelfree = ["Phase3D"]
 
@@ -2273,6 +2410,9 @@ test_data_fluor2phase.setup("test")
 # Get a test sample
 sample = next(iter(test_data_fluor2phase.test_dataloader()))
 
+# #######################
+# ##### SOLUTION ########
+# #######################
 # Extract input channels (fluorescence nuclei and membrane) and target (phase)
 fluor_input = sample["source"].to(fluor2phase_model.device)
 target_image = sample["target"].cpu().numpy().squeeze(0)
@@ -2281,6 +2421,9 @@ target_image = sample["target"].cpu().numpy().squeeze(0)
 with torch.inference_mode():
     predicted_phase = fluor2phase_model(fluor_input)[0]
 
+# #######################
+# ##### SOLUTION ########
+# #######################
 fluor_input = fluor_input.cpu().numpy()
 predicted_image = predicted_phase.cpu().numpy().squeeze(0)
 target_phase = rescale_intensity(target_image[0, 0], out_range=(0, 1))
@@ -2519,6 +2662,7 @@ with torch.inference_mode():
     predictions.append(original_pred.cpu().numpy())
 
 # Define the TTA transforms and the inverse transforms as a list of tuples (forward, inverse)
+###### SOLUTION ######
 transform_list = [
     (Rotate90(k=1, spatial_axes=(-1, -2)), Rotate90(k=3, spatial_axes=(-1, -2))),
     (Rotate90(k=2, spatial_axes=(-1, -2)), Rotate90(k=2, spatial_axes=(-1, -2))),
@@ -2531,6 +2675,8 @@ for forward_transform, inverse_transform in transform_list:
     # Apply transform to each sample in batch
     augmented_batch = []
     for i in range(source_tensor.shape[0]):
+        # Apply the forward transform and store the result
+        ###### SOLUTION ######
         img = source_tensor[i].cpu().numpy()
         aug_img = forward_transform(img)
         augmented_batch.append(aug_img)
@@ -2538,11 +2684,13 @@ for forward_transform, inverse_transform in transform_list:
 
     # Run inference on augmented input
     with torch.inference_mode():
+        ###### SOLUTION ######
         augmented_pred = phase2fluor_model(augmented_source)
 
     # De-apply transform to prediction
     deaugmented_batch = []
     for i in range(augmented_pred.shape[0]):
+        ###### SOLUTION ######
         pred = augmented_pred[i].cpu().numpy()
         deaug_pred = inverse_transform(pred)
         deaugmented_batch.append(deaug_pred)
@@ -2551,9 +2699,11 @@ for forward_transform, inverse_transform in transform_list:
     predictions.append(deaugmented_pred.cpu().numpy())
 
 # Average all predictions
+###### SOLUTION ######
 averaged_pred = np.stack(predictions).mean(axis=0)
 
 # Extract nucleus and membrane predictions
+###### SOLUTION ######
 tta_pred_nuc = averaged_pred[0, 0]
 tta_pred_mem = averaged_pred[0, 1]
 
@@ -2564,6 +2714,7 @@ with torch.inference_mode():
     single_pred_mem = single_pred[0, 1].cpu().numpy()
 
 # Normalize data range to 0-1 before computing metrics
+###### SOLUTION ######
 target_nuc[0] = rescale_intensity(target_nuc[0], in_range="image", out_range=(0, 1))
 single_pred_nuc[0] = rescale_intensity(
     single_pred_nuc[0], in_range="image", out_range=(0, 1)
