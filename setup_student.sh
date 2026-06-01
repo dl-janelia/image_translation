@@ -14,11 +14,13 @@
 #   3. Registers the env as a Jupyter kernel named "06_image_translation"
 #      so students see it in VSCode / JupyterLab.
 #   4. Downloads the training / test OME-Zarr datasets and the VSCyto2D
-#      pretrained checkpoint into $DATA_ROOT (default ~/data/06_image_translation),
-#      ONLY IF the data is not already there. If a TA has pre-staged data
-#      on a shared filesystem, point DATA_ROOT at it to skip the download:
+#      pretrained checkpoint into $DATA_ROOT/$KERNEL_NAME (default
+#      ~/data/06_image_translation), ONLY IF the data is not already there.
+#      $DATA_ROOT is the PARENT directory and $KERNEL_NAME is appended. If a
+#      TA has pre-staged data on a shared filesystem, point DATA_ROOT at the
+#      same parent to skip the download:
 #
-#        DATA_ROOT=/mnt/shared/image_translation bash setup_student.sh
+#        DATA_ROOT=/mnt/efs/dlmbl/data bash setup_student.sh
 #
 # Requires conda to be on PATH (true on the course AWS images and on most
 # laptops via miniconda/anaconda). If conda is missing, install miniconda
@@ -113,46 +115,51 @@ python -m ipykernel install --user \
 echo "Registered Jupyter kernel: $KERNEL_NAME"
 
 # --- 4. Download data + pretrained checkpoints (skip if already present) ----
-DATA_ROOT="${DATA_ROOT:-$HOME/data/$KERNEL_NAME}"
+# DATA_ROOT is the *parent* directory; the exercise data always lives in a
+# per-kernel subdirectory under it ($DATA_ROOT/$KERNEL_NAME). This matches
+# setup_TA.sh, so a TA who stages with DATA_ROOT=/mnt/efs/dlmbl/data and a
+# student who runs with the same DATA_ROOT resolve to the same data dir.
+DATA_ROOT="${DATA_ROOT:-$HOME/data}"
+DATA_DIR="$DATA_ROOT/$KERNEL_NAME"
 
 # Shared-mount fast path: on the course AWS instances, TAs pre-stage the
 # data at /mnt/efs/dlmbl/data/06_image_translation. If the user is using
 # the default DATA_ROOT, that mount exists, and they haven't already got
-# their own $DATA_ROOT, symlink $HOME/data/06_image_translation -> the
+# their own $DATA_DIR, symlink $HOME/data/06_image_translation -> the
 # shared mount instead of re-downloading 14 GB per student.
 # Set DATA_ROOT explicitly to opt out (e.g. on a non-AWS laptop).
 SHARED_DATA="/mnt/efs/dlmbl/data/$KERNEL_NAME"
-if [[ "$DATA_ROOT" == "$HOME/data/$KERNEL_NAME" ]] \
+if [[ "$DATA_ROOT" == "$HOME/data" ]] \
         && [[ -d "$SHARED_DATA" ]] \
-        && [[ ! -e "$DATA_ROOT" ]]; then
-    echo "Found shared data at $SHARED_DATA — symlinking $DATA_ROOT to it."
-    mkdir -p "$(dirname "$DATA_ROOT")"
-    ln -s "$SHARED_DATA" "$DATA_ROOT"
+        && [[ ! -e "$DATA_DIR" ]]; then
+    echo "Found shared data at $SHARED_DATA — symlinking $DATA_DIR to it."
+    mkdir -p "$(dirname "$DATA_DIR")"
+    ln -s "$SHARED_DATA" "$DATA_DIR"
 fi
 
-TRAINING_ZARR="$DATA_ROOT/training/a549_hoechst_cellmask_train_val.zarr"
-TEST_ZARR="$DATA_ROOT/test/a549_hoechst_cellmask_test.zarr"
-CHECKPOINT="$DATA_ROOT/pretrained_models/VSCyto2D/epoch=399-step=23200.ckpt"
-FLUOR2PHASE_CKPT="$DATA_ROOT/pretrained_models/DLCourse/fluor2phase_step668.ckpt"
+TRAINING_ZARR="$DATA_DIR/training/a549_hoechst_cellmask_train_val.zarr"
+TEST_ZARR="$DATA_DIR/test/a549_hoechst_cellmask_test.zarr"
+CHECKPOINT="$DATA_DIR/pretrained_models/VSCyto2D/epoch=399-step=23200.ckpt"
+FLUOR2PHASE_CKPT="$DATA_DIR/pretrained_models/DLCourse/fluor2phase_step668.ckpt"
 
-mkdir -p "$DATA_ROOT/training" "$DATA_ROOT/test" "$DATA_ROOT/pretrained_models"
+mkdir -p "$DATA_DIR/training" "$DATA_DIR/test" "$DATA_DIR/pretrained_models"
 
 if [[ -d "$TRAINING_ZARR" && -d "$TEST_ZARR" && -f "$CHECKPOINT" && -f "$FLUOR2PHASE_CKPT" ]]; then
-    echo "Data already present at $DATA_ROOT — skipping download."
+    echo "Data already present at $DATA_DIR — skipping download."
 else
-    echo "Downloading data + checkpoints to $DATA_ROOT ..."
-    cd "$DATA_ROOT/training"
+    echo "Downloading data + checkpoints to $DATA_DIR ..."
+    cd "$DATA_DIR/training"
     wget -m -np -nH --cut-dirs=6 -R "index.html*" "https://public.czbiohub.org/comp.micro/viscy/VS_datasets/VSCyto2D/training/zarrv3/a549_hoechst_cellmask_train_val.zarr/"
 
-    cd "$DATA_ROOT/test"
+    cd "$DATA_DIR/test"
     wget -m -np -nH --cut-dirs=6 -R "index.html*" "https://public.czbiohub.org/comp.micro/viscy/VS_datasets/VSCyto2D/test/zarrv3/a549_hoechst_cellmask_test.zarr/"
 
-    cd "$DATA_ROOT/pretrained_models"
+    cd "$DATA_DIR/pretrained_models"
     wget -m -np -nH --cut-dirs=4 -R "index.html*" "https://public.czbiohub.org/comp.micro/viscy/VS_models/VSCyto2D/VSCyto2D/epoch=399-step=23200.ckpt"
     # Part 2.5 reverse model (fluorescence -> phase), hosted under the
     # dl_at_janelia/ tree because it's a DL@Janelia course model.
-    mkdir -p "$DATA_ROOT/pretrained_models/DLCourse"
-    cd "$DATA_ROOT/pretrained_models/DLCourse"
+    mkdir -p "$DATA_DIR/pretrained_models/DLCourse"
+    cd "$DATA_DIR/pretrained_models/DLCourse"
     wget -m -np -nH --cut-dirs=4 -R "index.html*" "https://public.czbiohub.org/comp.micro/dl_at_janelia/DLCourse/pretrained_models/fluor2phase_step668.ckpt"
 fi
 
@@ -165,7 +172,7 @@ Student setup complete.
 
   - conda env:      $ENV_NAME
   - jupyter kernel: $KERNEL_NAME
-  - data:           $DATA_ROOT
+  - data:           $DATA_DIR
 
 To start the exercise:
   1. conda activate $ENV_NAME

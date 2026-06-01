@@ -6,7 +6,8 @@
 # or pass --all to do everything in one shot.
 #
 #   1. STAGE  (default)  Download ~14 GB of OME-Zarr data + checkpoints
-#                        into $DATA_ROOT. Skip files already present.
+#                        into $DATA_ROOT/$KERNEL_NAME. Skip files already
+#                        present. ($DATA_ROOT is the parent directory.)
 #   2. INSTALL           Run setup_student.sh end-to-end in a throwaway
 #                        location to validate that pyproject.toml resolves
 #                        cleanly against current PyPI / GitHub state.
@@ -30,12 +31,14 @@
 #   bash setup_TA.sh --all
 #
 #   # Stage onto a shared mount (recommended for courses):
-#   DATA_ROOT=/mnt/efs/image_translation bash setup_TA.sh --all
+#   # DATA_ROOT is the PARENT; data lands in $DATA_ROOT/$KERNEL_NAME, e.g.
+#   # /mnt/efs/dlmbl/data/06_image_translation.
+#   DATA_ROOT=/mnt/efs/dlmbl/data bash setup_TA.sh --all
 #
 # Once this finishes, students point setup_student.sh at the same DATA_ROOT
-# and skip the download:
+# (parent) and skip the download:
 #
-#   DATA_ROOT=/mnt/efs/image_translation bash setup_student.sh
+#   DATA_ROOT=/mnt/efs/dlmbl/data bash setup_student.sh
 
 set -euo pipefail
 
@@ -70,11 +73,16 @@ fi
 START_DIR=$(pwd)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 KERNEL_NAME="${KERNEL_NAME:-06_image_translation}"
-DATA_ROOT="${DATA_ROOT:-$HOME/data/$KERNEL_NAME}"
+# DATA_ROOT is the *parent* directory; the exercise's data always lives in a
+# per-kernel subdirectory under it. So the data lands in $DATA_ROOT/$KERNEL_NAME,
+# which is exactly where setup_student.sh looks for it.
+DATA_ROOT="${DATA_ROOT:-$HOME/data}"
+DATA_DIR="$DATA_ROOT/$KERNEL_NAME"
 
 echo "================================================================"
 echo "TA setup — phases: stage=$DO_STAGE  install=$DO_INSTALL  smoke=$DO_SMOKE"
 echo "  DATA_ROOT: $DATA_ROOT"
+echo "  DATA_DIR:  $DATA_DIR  (= \$DATA_ROOT/\$KERNEL_NAME)"
 echo "  repo:      $SCRIPT_DIR"
 echo "================================================================"
 
@@ -83,9 +91,9 @@ echo "================================================================"
 # -----------------------------------------------------------------------------
 if [[ "$DO_STAGE" == "true" ]]; then
     echo
-    echo "### [1/3] Staging data + checkpoints into $DATA_ROOT ..."
+    echo "### [1/3] Staging data + checkpoints into $DATA_DIR ..."
 
-    SENTINEL="$DATA_ROOT/.staged_ok"
+    SENTINEL="$DATA_DIR/.staged_ok"
     if [[ -f "$SENTINEL" && "${FORCE_DOWNLOAD:-0}" != "1" ]]; then
         echo "    Found sentinel $SENTINEL — staging already completed successfully."
         echo "    (Pass FORCE_DOWNLOAD=1 to re-run wget anyway, e.g. if the"
@@ -97,22 +105,22 @@ if [[ "$DO_STAGE" == "true" ]]; then
         echo "    sentinel file ($SENTINEL) at the end of a successful run so"
         echo "    subsequent --stage calls can fast-skip cleanly."
 
-        mkdir -p "$DATA_ROOT/training" "$DATA_ROOT/test" \
-                 "$DATA_ROOT/pretrained_models" \
-                 "$DATA_ROOT/pretrained_models/DLCourse"
+        mkdir -p "$DATA_DIR/training" "$DATA_DIR/test" \
+                 "$DATA_DIR/pretrained_models" \
+                 "$DATA_DIR/pretrained_models/DLCourse"
 
-        cd "$DATA_ROOT/training"
+        cd "$DATA_DIR/training"
         wget -m -np -nH --cut-dirs=6 -R "index.html*" "https://public.czbiohub.org/comp.micro/viscy/VS_datasets/VSCyto2D/training/zarrv3/a549_hoechst_cellmask_train_val.zarr/"
 
-        cd "$DATA_ROOT/test"
+        cd "$DATA_DIR/test"
         wget -m -np -nH --cut-dirs=6 -R "index.html*" "https://public.czbiohub.org/comp.micro/viscy/VS_datasets/VSCyto2D/test/zarrv3/a549_hoechst_cellmask_test.zarr/"
 
-        cd "$DATA_ROOT/pretrained_models"
+        cd "$DATA_DIR/pretrained_models"
         wget -m -np -nH --cut-dirs=4 -R "index.html*" "https://public.czbiohub.org/comp.micro/viscy/VS_models/VSCyto2D/VSCyto2D/epoch=399-step=23200.ckpt"
         # Part 2.5 reverse model (fluorescence -> phase). Hosted under the
         # dl_at_janelia/ tree because it's a DL@Janelia course model, not a
         # general-purpose VisCy release.
-        cd "$DATA_ROOT/pretrained_models/DLCourse"
+        cd "$DATA_DIR/pretrained_models/DLCourse"
         wget -m -np -nH --cut-dirs=4 -R "index.html*" "https://public.czbiohub.org/comp.micro/dl_at_janelia/DLCourse/pretrained_models/fluor2phase_step668.ckpt"
 
         cd "$START_DIR"
@@ -122,10 +130,10 @@ if [[ "$DO_STAGE" == "true" ]]; then
     echo "    Verifying staged files ..."
     MISSING=0
     for f in \
-        "$DATA_ROOT/training/a549_hoechst_cellmask_train_val.zarr" \
-        "$DATA_ROOT/test/a549_hoechst_cellmask_test.zarr" \
-        "$DATA_ROOT/pretrained_models/VSCyto2D/epoch=399-step=23200.ckpt" \
-        "$DATA_ROOT/pretrained_models/DLCourse/fluor2phase_step668.ckpt"
+        "$DATA_DIR/training/a549_hoechst_cellmask_train_val.zarr" \
+        "$DATA_DIR/test/a549_hoechst_cellmask_test.zarr" \
+        "$DATA_DIR/pretrained_models/VSCyto2D/epoch=399-step=23200.ckpt" \
+        "$DATA_DIR/pretrained_models/DLCourse/fluor2phase_step668.ckpt"
     do
         if [[ -e "$f" ]]; then
             echo "      OK    $f"
@@ -139,7 +147,7 @@ if [[ "$DO_STAGE" == "true" ]]; then
         exit 1
     fi
     # Drop the sentinel so subsequent --stage calls fast-skip the wget walk.
-    touch "$DATA_ROOT/.staged_ok"
+    touch "$DATA_DIR/.staged_ok"
     echo "    [1/3] OK."
 fi
 
@@ -209,7 +217,8 @@ cat <<EOF
 --------------------------------------------------------------------
 TA setup complete.
 
-  - data:           $DATA_ROOT
+  - data root:      $DATA_ROOT   (parent; \$KERNEL_NAME is appended)
+  - data dir:       $DATA_DIR
   - phases run:     stage=$DO_STAGE install=$DO_INSTALL smoke=$DO_SMOKE
 
 Tell students to run:

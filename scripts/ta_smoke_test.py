@@ -47,18 +47,22 @@ from viscy_utils.trainer import VisCyTrainer
 seed_everything(42, workers=True)
 
 KERNEL_NAME = os.environ.get("KERNEL_NAME", "06_image_translation")
-DATA_ROOT = Path(os.environ.get("DATA_ROOT", f"~/data/{KERNEL_NAME}")).expanduser()
-TRAINING_ZARR = DATA_ROOT / "training" / "a549_hoechst_cellmask_train_val.zarr"
-TEST_ZARR = DATA_ROOT / "test" / "a549_hoechst_cellmask_test.zarr"
+# DATA_ROOT is the parent directory; the data lives in DATA_ROOT/KERNEL_NAME
+# (matching setup_TA.sh and setup_student.sh).
+DATA_ROOT = Path(os.environ.get("DATA_ROOT", "~/data")).expanduser()
+DATA_DIR = DATA_ROOT / KERNEL_NAME
+TRAINING_ZARR = DATA_DIR / "training" / "a549_hoechst_cellmask_train_val.zarr"
+TEST_ZARR = DATA_DIR / "test" / "a549_hoechst_cellmask_test.zarr"
 VSCYTO2D_CKPT = (
-    DATA_ROOT / "pretrained_models" / "VSCyto2D" / "epoch=399-step=23200.ckpt"
+    DATA_DIR / "pretrained_models" / "VSCyto2D" / "epoch=399-step=23200.ckpt"
 )
 FLUOR2PHASE_CKPT = (
-    DATA_ROOT / "pretrained_models" / "DLCourse" / "fluor2phase_step668.ckpt"
+    DATA_DIR / "pretrained_models" / "DLCourse" / "fluor2phase_step668.ckpt"
 )
 
 print(f"## TA smoke test")
 print(f"  DATA_ROOT: {DATA_ROOT}")
+print(f"  DATA_DIR:  {DATA_DIR}")
 for p in (TRAINING_ZARR, TEST_ZARR, VSCYTO2D_CKPT, FLUOR2PHASE_CKPT):
     if not p.exists():
         print(f"  MISSING: {p}", file=sys.stderr)
