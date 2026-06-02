@@ -168,20 +168,30 @@ from viscy_utils.trainer import VisCyTrainer
 # seed random number generators for reproducibility.
 seed_everything(42, workers=True)
 
-# Paths to data and log directory.
-# DATA_ROOT (set by setup_student.sh / setup_TA.sh) is the *parent* directory;
-# the exercise data lives in DATA_ROOT/KERNEL_NAME (the folder containing
-# training/, test/, pretrained_models/). When unset, fall back to the default
-# ~/data/06_image_translation layout.
-KERNEL_NAME = os.environ.get("KERNEL_NAME", "06_image_translation")
-data_root = Path(os.environ.get("DATA_ROOT", "~/data")).expanduser()
-top_dir = data_root / KERNEL_NAME
-# Backward compatibility: if DATA_ROOT was set to the data dir directly (the
-# old convention) rather than its parent, use it as-is.
-if not top_dir.exists() and (data_root / "training").exists():
-    top_dir = data_root
+# %% tags=["task"]
+# Set the path to the data.
+#
+# `top_dir` is the folder that contains training/, test/, and
+# pretrained_models/. Your TA staged the data somewhere — find that folder
+# and point `top_dir` at it. (On the course machines it is usually under
+# ~/data/06_image_translation or a shared mount your TA will tell you about.)
+#
+# #######################
+# ##### TODO ########
+# #######################
+top_dir = Path("TODO: /path/to/06_image_translation")  # <-- edit this
 
-# Path to the training data
+# %% tags=["solution"]
+# DATA_ROOT points directly at the data folder (training/, test/,
+# pretrained_models/), e.g. `export DATA_ROOT=/mnt/efs/dlmbl/data/06_image_translation`.
+# #######################
+# ##### SOLUTION ########
+# #######################
+top_dir = Path(os.environ.get("DATA_ROOT", "~/data/06_image_translation")).expanduser()
+
+# %%
+# Derived paths. `top_dir` must point at the folder containing training/,
+# test/, and pretrained_models/.
 data_path = top_dir / "training/a549_hoechst_cellmask_train_val.zarr"
 
 # Path where we will save our training logs

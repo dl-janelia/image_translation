@@ -17,6 +17,15 @@ from pathlib import Path
 sys.stdout.reconfigure(line_buffering=True)
 sys.stderr.reconfigure(line_buffering=True)
 
+# Fail fast on a missing DATA_ROOT before paying for the heavy imports below.
+# DATA_ROOT points directly at the data folder (training/, test/,
+# pretrained_models/), matching download_data.sh.
+if "DATA_ROOT" not in os.environ:
+    raise SystemExit(
+        "DATA_ROOT is not set. Export it first, e.g. "
+        "`export DATA_ROOT=/mnt/efs/dlmbl/data/06_image_translation`."
+    )
+
 # Tell PyTorch's CUDA allocator to grow segments dynamically. Without this,
 # training allocates a bunch of activation chunks, then validation tries to
 # allocate big tensors and can't find a contiguous slot — even though the
@@ -46,23 +55,18 @@ from viscy_utils.trainer import VisCyTrainer
 
 seed_everything(42, workers=True)
 
-KERNEL_NAME = os.environ.get("KERNEL_NAME", "06_image_translation")
-# DATA_ROOT is the parent directory; the data lives in DATA_ROOT/KERNEL_NAME
-# (matching setup_TA.sh and setup_student.sh).
-DATA_ROOT = Path(os.environ.get("DATA_ROOT", "~/data")).expanduser()
-DATA_DIR = DATA_ROOT / KERNEL_NAME
-TRAINING_ZARR = DATA_DIR / "training" / "a549_hoechst_cellmask_train_val.zarr"
-TEST_ZARR = DATA_DIR / "test" / "a549_hoechst_cellmask_test.zarr"
+DATA_ROOT = Path(os.environ["DATA_ROOT"]).expanduser()
+TRAINING_ZARR = DATA_ROOT / "training" / "a549_hoechst_cellmask_train_val.zarr"
+TEST_ZARR = DATA_ROOT / "test" / "a549_hoechst_cellmask_test.zarr"
 VSCYTO2D_CKPT = (
-    DATA_DIR / "pretrained_models" / "VSCyto2D" / "epoch=399-step=23200.ckpt"
+    DATA_ROOT / "pretrained_models" / "VSCyto2D" / "epoch=399-step=23200.ckpt"
 )
 FLUOR2PHASE_CKPT = (
-    DATA_DIR / "pretrained_models" / "DLCourse" / "fluor2phase_step668.ckpt"
+    DATA_ROOT / "pretrained_models" / "DLCourse" / "fluor2phase_step668.ckpt"
 )
 
 print(f"## TA smoke test")
 print(f"  DATA_ROOT: {DATA_ROOT}")
-print(f"  DATA_DIR:  {DATA_DIR}")
 for p in (TRAINING_ZARR, TEST_ZARR, VSCYTO2D_CKPT, FLUOR2PHASE_CKPT):
     if not p.exists():
         print(f"  MISSING: {p}", file=sys.stderr)

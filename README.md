@@ -40,21 +40,36 @@ From your clone of the course repo:
 ```bash
 git submodule update --init --recursive --remote
 cd 06_image_translation
+export DATA_ROOT=/path/your/TA/gave/you   # the data folder
 bash setup_student.sh
 ```
 
-The script creates the `06_image_translation` conda env, installs
-[pyproject.toml](pyproject.toml) into it, registers the matching Jupyter
-kernel, and verifies the data your TA pre-staged at `$DATA_ROOT`.
+`DATA_ROOT` is the folder that holds the data (`training/`, `test/`,
+`pretrained_models/`). Your TA will tell you what to set it to. Export it
+before running `setup_student.sh` **and** before launching Jupyter, so the
+notebook can find the data.
+
+`setup_student.sh` creates the `06_image_translation` conda env, installs
+[pyproject.toml](pyproject.toml) into it, and registers the matching Jupyter
+kernel. It does **not** download data — that's pre-staged by your TA. If you
+need to fetch it yourself:
+
+```bash
+export DATA_ROOT=$HOME/data/06_image_translation
+bash download_data.sh
+```
+
 Requires `conda` on your PATH; install
 [Miniconda](https://docs.conda.io/en/latest/miniconda.html) first if you
 don't have it.
 
 ## Run the exercise
 
-Activate the env and launch Jupyter Lab:
+Activate the env and launch Jupyter Lab (keep `DATA_ROOT` exported in the
+same shell so the notebook can find the data):
 
 ```bash
+export DATA_ROOT=/path/your/TA/gave/you   # the data folder
 conda activate 06_image_translation
 jupyter lab
 ```
@@ -75,10 +90,16 @@ Stage data, validate the install, and smoke-test the notebook with one
 command:
 
 ```bash
-DATA_ROOT=/path/to/shared/image_translation bash setup_TA.sh --all
+export DATA_ROOT=/path/to/shared/06_image_translation   # the data folder
+bash setup_TA.sh --all
 ```
 
-See `bash setup_TA.sh --help` for individual phases.
+See `bash setup_TA.sh --help` for individual phases. To only stage the data:
+
+```bash
+export DATA_ROOT=/path/to/shared/06_image_translation
+bash download_data.sh
+```
 
 Rebuild the notebooks after editing `solution.py`:
 

@@ -5,7 +5,7 @@
 # Three phases, run in order before the course (or --all for everything):
 #
 #   1. STAGE   (default)  Download ~14 GB of data + checkpoints into
-#                         $DATA_ROOT/$KERNEL_NAME (delegates to download_data.sh).
+#                         $DATA_ROOT (delegates to download_data.sh).
 #   2. INSTALL            Run setup_student.sh in a throwaway conda env to
 #                         confirm pyproject.toml still resolves cleanly.
 #   3. SMOKE              Run a short training pass through solution.py on a
@@ -18,19 +18,24 @@
 #   bash setup_TA.sh --smoke          # smoke-test notebook on GPU
 #   bash setup_TA.sh --all            # all three (recommended ~1 week before)
 #
-# DATA_ROOT is the PARENT directory; data lands in $DATA_ROOT/$KERNEL_NAME.
-# Stage onto a shared mount, then point students at the same DATA_ROOT:
-#   DATA_ROOT=/mnt/efs/dlmbl/data bash setup_TA.sh --all
-#   DATA_ROOT=/mnt/efs/dlmbl/data bash setup_student.sh
+# Export DATA_ROOT first (the data folder, holding training/test/
+# pretrained_models). Stage onto a shared mount, then point students at the
+# same DATA_ROOT:
+#   export DATA_ROOT=/mnt/efs/dlmbl/data/06_image_translation
+#   bash setup_TA.sh --all
+#   # students: export DATA_ROOT=<same> && bash setup_student.sh
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-KERNEL_NAME="${KERNEL_NAME:-06_image_translation}"
 ENV_NAME="${ENV_NAME:-06_image_translation}"
 VALIDATE_ENV_NAME="${VALIDATE_ENV_NAME:-${ENV_NAME}-validate}"
-DATA_ROOT="${DATA_ROOT:-$HOME/data}"   # parent dir; $KERNEL_NAME is appended
-DATA_DIR="$DATA_ROOT/$KERNEL_NAME"
+
+if [[ -z "${DATA_ROOT:-}" ]]; then
+    echo "ERROR: DATA_ROOT is not set. Export the data folder first, e.g.:" >&2
+    echo "  export DATA_ROOT=/mnt/efs/dlmbl/data/06_image_translation" >&2
+    exit 1
+fi
 
 require_conda() {
     command -v conda >/dev/null 2>&1 && return 0
@@ -61,20 +66,19 @@ fi
 
 echo "================================================================"
 echo "TA setup — stage=$DO_STAGE install=$DO_INSTALL smoke=$DO_SMOKE"
-echo "  DATA_DIR: $DATA_DIR"
+echo "  DATA_ROOT: $DATA_ROOT"
 echo "================================================================"
 
 # --- Phase 1: STAGE ----------------------------------------------------------
 if [[ "$DO_STAGE" == "true" ]]; then
     echo
     echo "### [1/3] Staging data + checkpoints ..."
-    DATA_ROOT="$DATA_ROOT" KERNEL_NAME="$KERNEL_NAME" \
-        bash "$SCRIPT_DIR/download_data.sh"
+    DATA_ROOT="$DATA_ROOT" bash "$SCRIPT_DIR/download_data.sh"
 fi
 
 # --- Phase 2: INSTALL --------------------------------------------------------
 # Run setup_student.sh against a throwaway env so we don't disturb the TA's
-# working env. No data is downloaded (DATA_DIR is already staged).
+# working env. No data is downloaded (DATA_ROOT is already staged).
 if [[ "$DO_INSTALL" == "true" ]]; then
     echo
     echo "### [2/3] Validating install in throwaway env '$VALIDATE_ENV_NAME' ..."
@@ -100,8 +104,7 @@ if [[ "$DO_SMOKE" == "true" ]]; then
         exit 1
     fi
 
-    DATA_ROOT="$DATA_ROOT" KERNEL_NAME="$KERNEL_NAME" \
-        conda run -n "$SMOKE_ENV" --no-capture-output \
+    DATA_ROOT="$DATA_ROOT" conda run -n "$SMOKE_ENV" --no-capture-output \
         python "$SCRIPT_DIR/scripts/ta_smoke_test.py"
 fi
 
@@ -109,10 +112,11 @@ cat <<EOF
 
 --------------------------------------------------------------------
 TA setup complete.
-  - data:       $DATA_DIR
+  - data:       $DATA_ROOT
   - phases run: stage=$DO_STAGE install=$DO_INSTALL smoke=$DO_SMOKE
 
 Tell students to run (same DATA_ROOT reuses the staged data):
-  DATA_ROOT=$DATA_ROOT bash setup_student.sh
+  export DATA_ROOT=$DATA_ROOT
+  bash setup_student.sh
 --------------------------------------------------------------------
 EOF

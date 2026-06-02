@@ -2,17 +2,22 @@
 #
 # Image-translation exercise — STUDENT setup.
 #
-# Creates a conda env, installs the exercise dependencies into it, registers
-# a Jupyter kernel, and downloads the data (via download_data.sh).
+# Creates a conda env, installs the exercise dependencies into it, and
+# registers a Jupyter kernel. It does NOT download data — the data is either
+# pre-staged by a TA on a shared mount or fetched separately with
+# download_data.sh.
 #
-# Run from the exercise folder:
+# Export DATA_ROOT first (the data folder, holding training/test/
+# pretrained_models; the notebook reads it too), then run from the exercise
+# folder:
+#
+#   export DATA_ROOT=/mnt/efs/dlmbl/data/06_image_translation
 #   cd 06_image_translation
 #   bash setup_student.sh
 #
-# DATA_ROOT is the PARENT directory; data lands in $DATA_ROOT/$KERNEL_NAME.
-# If a TA pre-staged data on a shared mount, point DATA_ROOT at the same
-# parent to skip the 14 GB download:
-#   DATA_ROOT=/mnt/efs/dlmbl/data bash setup_student.sh
+# If you need to fetch the data yourself:
+#   export DATA_ROOT=$HOME/data/06_image_translation
+#   bash download_data.sh
 #
 # Requires conda on PATH (install Miniconda if missing:
 # https://docs.conda.io/en/latest/miniconda.html).
@@ -24,8 +29,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_NAME="${ENV_NAME:-06_image_translation}"
 KERNEL_NAME="${KERNEL_NAME:-$ENV_NAME}"
 PYTHON_VERSION="${PYTHON_VERSION:-3.12}"
-DATA_ROOT="${DATA_ROOT:-$HOME/data}"   # parent dir; $KERNEL_NAME is appended
-DATA_DIR="$DATA_ROOT/$KERNEL_NAME"
+
+if [[ -z "${DATA_ROOT:-}" ]]; then
+    echo "ERROR: DATA_ROOT is not set. Export the data folder first, e.g.:" >&2
+    echo "  export DATA_ROOT=/mnt/efs/dlmbl/data/06_image_translation" >&2
+    exit 1
+fi
 
 if ! command -v conda >/dev/null 2>&1; then
     echo "ERROR: conda is not on your PATH. Install Miniconda first:" >&2
@@ -77,10 +86,15 @@ python -m ipykernel install --user \
     --name "$KERNEL_NAME" --display-name "Python ($KERNEL_NAME)"
 echo "Registered Jupyter kernel: $KERNEL_NAME"
 
-# --- 4. Download data + checkpoints ----------------------------------------
-DATA_ROOT="$DATA_ROOT" KERNEL_NAME="$KERNEL_NAME" bash "$SCRIPT_DIR/download_data.sh"
-
 cd "$START_DIR"
+
+# Warn (don't fail) if the data isn't where DATA_ROOT points yet.
+if [[ ! -d "$DATA_ROOT/training" ]]; then
+    echo
+    echo "NOTE: no data found at $DATA_ROOT."
+    echo "  If your TA staged it elsewhere, re-export DATA_ROOT to that folder."
+    echo "  To download it yourself: DATA_ROOT=$DATA_ROOT bash download_data.sh"
+fi
 
 cat <<EOF
 
@@ -88,7 +102,7 @@ cat <<EOF
 Student setup complete.
   - conda env:      $ENV_NAME
   - jupyter kernel: $KERNEL_NAME
-  - data:           $DATA_DIR
+  - data (DATA_ROOT): $DATA_ROOT
 
 To start the exercise:
   1. conda activate $ENV_NAME
