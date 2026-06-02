@@ -88,21 +88,13 @@ echo "Registered Jupyter kernel: $KERNEL_NAME"
 
 cd "$START_DIR"
 
-# Warn (don't fail) if the data isn't where DATA_ROOT points yet.
-if [[ ! -d "$DATA_ROOT/training" ]]; then
-    echo
-    echo "NOTE: no data found at $DATA_ROOT."
-    echo "  If your TA staged it elsewhere, re-export DATA_ROOT to that folder."
-    echo "  To download it yourself: DATA_ROOT=$DATA_ROOT bash download_data.sh"
-fi
-
 cat <<EOF
 
 --------------------------------------------------------------------
-Student setup complete.
+Conda env + Jupyter kernel ready.
   - conda env:      $ENV_NAME
   - jupyter kernel: $KERNEL_NAME
-  - data (DATA_ROOT): $DATA_ROOT
+  - DATA_ROOT:      $DATA_ROOT
 
 To start the exercise:
   1. conda activate $ENV_NAME
@@ -111,3 +103,17 @@ To start the exercise:
   4. Run cells top to bottom.
 --------------------------------------------------------------------
 EOF
+
+# Loudly flag missing data — the env is set up but the exercise can't run
+# until the data is at DATA_ROOT.
+if [[ ! -d "$DATA_ROOT/training" ]]; then
+    cat >&2 <<EOF
+
+####################################################################
+WARNING: no data found at DATA_ROOT=$DATA_ROOT
+
+The conda env is ready, but the exercise data is NOT there yet. Either:
+  - re-export DATA_ROOT to the folder where your TA staged the data
+####################################################################
+EOF
+fi
