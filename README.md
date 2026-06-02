@@ -7,17 +7,17 @@ Written by Eduardo Hirata-Miyasaki, Ziwen Liu, and Shalin Mehta, CZ Biohub San F
 In this exercise, we will predict fluorescence images of nuclei and plasma membrane markers from quantitative phase images of cells, i.e., we will *virtually stain* the nuclei and plasma membrane visible in the phase image.
 This is an example of an image translation task. We will apply spatial and intensity augmentations to train robust models and evaluate their performance. Finally, we will explore the opposite process of predicting a phase image from a fluorescence membrane label.
 
-![A549 phase to fluorescence timelapse](https://public.czbiohub.org/comp.micro/dl_at_janelia/DLCourse/assets/a549_timelapse.gif)
+A549 phase to fluorescence timelapse
 
 ## Goals
 
 ### Part 1: Learn to use iohub (I/O library), VisCy dataloaders, and TensorBoard.
 
 - Use a OME-Zarr dataset of 34 FOVs of adenocarcinomic human alveolar basal epithelial cells (A549),
-  each FOV has 3 channels (phase, nuclei, and cell membrane).
-  The nuclei were stained with DAPI and the cell membrane with Cellmask.
+each FOV has 3 channels (phase, nuclei, and cell membrane).
+The nuclei were stained with DAPI and the cell membrane with Cellmask.
 - Explore OME-Zarr using [iohub](https://czbiohub-sf.github.io/iohub/main/index.html)
-  and the high-content-screen (HCS) format.
+and the high-content-screen (HCS) format.
 - Use [MONAI](https://monai.io/) to implement data augmentations.
 
 ### Part 2: Train and evaluate the model to translate phase into fluorescence, and vice versa.
@@ -40,22 +40,18 @@ From your clone of the course repo:
 ```bash
 git submodule update --init --recursive --remote
 cd 06_image_translation
-export DATA_ROOT=/path/your/TA/gave/you   # the data folder
+export DATA_ROOT=<TODO: course data folder>   # e.g. /mnt/efs/.../06_image_translation
 bash setup_student.sh
 ```
-
-`DATA_ROOT` is the folder that holds the data (`training/`, `test/`,
-`pretrained_models/`). Your TA will tell you what to set it to. Export it
-before running `setup_student.sh` **and** before launching Jupyter, so the
-notebook can find the data.
 
 `setup_student.sh` creates the `06_image_translation` conda env, installs
 [pyproject.toml](pyproject.toml) into it, and registers the matching Jupyter
 kernel. It does **not** download data — that's pre-staged by your TA. If you
-need to fetch it yourself:
+need to fetch it yourself, point `DATA_ROOT` at the folder where you want
+the data to live, then run the downloader:
 
 ```bash
-export DATA_ROOT=$HOME/data/06_image_translation
+export DATA_ROOT=/where/you/want/the/data   # this folder gets training/, test/, ...
 bash download_data.sh
 ```
 
@@ -69,13 +65,13 @@ Activate the env and launch Jupyter Lab (keep `DATA_ROOT` exported in the
 same shell so the notebook can find the data):
 
 ```bash
-export DATA_ROOT=/path/your/TA/gave/you   # the data folder
+export DATA_ROOT=<TODO: course data folder>   # e.g. /mnt/efs/.../06_image_translation
 conda activate 06_image_translation
 jupyter lab
 ```
 
-Open **`exercise.ipynb`**, pick the **Python (06_image_translation)**
-kernel, and run cells with `Shift+Enter`. Peek at **`solution.ipynb`**
+Open `**exercise.ipynb**`, pick the **Python (06_image_translation)**
+kernel, and run cells with `Shift+Enter`. Peek at `**solution.ipynb`**
 when you get stuck.
 
 VSCode users can open `exercise.ipynb` directly, or run `solution.py`
@@ -90,14 +86,14 @@ Stage data, validate the install, and smoke-test the notebook with one
 command:
 
 ```bash
-export DATA_ROOT=/path/to/shared/06_image_translation   # the data folder
+export DATA_ROOT=<TODO: course data folder>   # e.g. /mnt/efs/.../06_image_translation
 bash setup_TA.sh --all
 ```
 
 See `bash setup_TA.sh --help` for individual phases. To only stage the data:
 
 ```bash
-export DATA_ROOT=/path/to/shared/06_image_translation
+export DATA_ROOT=<TODO: course data folder>   # e.g. /mnt/efs/.../06_image_translation
 bash download_data.sh
 ```
 
@@ -118,6 +114,5 @@ python -m ipykernel install --user \
 
 ## References
 
-- [Liu, Z. and Hirata-Miyasaki, E. et al. (2025) Robust virtual staining of landmark organelles with Cytoland. *Nature Machine Intelligence*](https://www.nature.com/articles/s42256-025-01046-2)
-- [Guo et al. (2020) Revealing architectural order with quantitative label-free imaging and deep learning. *eLife*](https://elifesciences.org/articles/55502)
-
+- [Liu, Z. and Hirata-Miyasaki, E. et al. (2025) Robust virtual staining of landmark organelles with Cytoland. *Nature Machine Intelligence](https://www.nature.com/articles/s42256-025-01046-2)*
+- [Guo et al. (2020) Revealing architectural order with quantitative label-free imaging and deep learning. *eLife](https://elifesciences.org/articles/55502)*
