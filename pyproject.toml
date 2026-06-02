@@ -2,7 +2,7 @@
 name = "image-translation-exercise"
 version = "0.0.0"
 description = "DL@Janelia image translation (virtual staining) exercise — student environment"
-requires-python = ">=3.12,<3.13"
+requires-python = ">=3.12"
 
 # All dependencies for the exercise live here — pyproject.toml is the single
 # source of truth. Bump the cytoland git ref below to upgrade VisCy.
@@ -10,18 +10,17 @@ requires-python = ">=3.12,<3.13"
 # TODO(dl-janelia): once viscy/cytoland 0.5.0a* lands on PyPI, replace the
 # cytoland git URL with `"cytoland[metrics]>=0.5.0a1"`.
 #
-# The course AWS AMI is now on NVIDIA driver >=550, so the old cu121 torch
-# pins (torch 2.4.1 / torchvision 0.19.1 from the cu121 wheel index) have
-# been dropped — torch now resolves to the default PyPI (cu12x) wheels that
-# viscy prefers.
+# torch / torchvision / transformers are intentionally unpinned — they
+# resolve to current PyPI (cu13) wheels, which work on the course machines.
+# NOTE: torch ships its own CUDA libs. If a system CUDA on LD_LIBRARY_PATH
+# (e.g. /usr/local/cuda) shadows them, the first cuBLASLt call aborts with
+# "Cannot load symbol cublasLtGetVersion". The fix belongs in the AWS AMI —
+# it must NOT prepend /usr/local/cuda/lib64 to LD_LIBRARY_PATH (see
+# scripts/diagnose_cublas.sh). Not worked around here.
 dependencies = [
     "torch",
     "torchvision",
-    # transformers 5.x changed several import paths viscy 0.x was written
-    # against; viscy declares transformers>=4.40 with no upper bound, so pin
-    # <5 to keep uv from resolving to 5.x. (Unrelated to the CUDA/torch
-    # version — kept after dropping the cu121 pins.)
-    "transformers<5",
+    "transformers",
     "cytoland[metrics] @ git+https://github.com/mehta-lab/VisCy.git@v0.5.0a1#subdirectory=applications/cytoland",
     "cellpose",
     "cmap",
@@ -43,10 +42,3 @@ dependencies = [
 
 [tool.uv]
 package = false
-
-# Keep transformers <5 (see the dependency comment above). The torch /
-# torchvision cu121 overrides were dropped along with the cu121 wheel index
-# now that the course AMI is on driver >=550.
-override-dependencies = [
-    "transformers<5",
-]
