@@ -11,7 +11,7 @@
 # pretrained_models; the notebook reads it too), then run from the exercise
 # folder:
 #
-#   export DATA_ROOT=/mnt/efs/dlmbl/data/06_image_translation
+#   export DATA_ROOT=/mnt/efs/dl_jrc/data/06_image_translation  
 #   cd 06_image_translation
 #   bash setup_student.sh
 #

@@ -34,7 +34,7 @@
 #   - Use tensorboard to log the augmentations, training and validation losses and batches
 #   - Start the training of the UNeXt2 model to predict nuclei and membrane from phase images.
 #
-# #### Part 2:Evaluate the model to translate phase into fluorescence.
+# #### Part 2: Evaluate the model to translate phase into fluorescence.
 #   - Compare the performance of your trained model with the _VSCyto2D_ pre-trained model.
 #   - Evaluate the model using pixel-level and instance-level metrics.
 #
@@ -2036,15 +2036,6 @@ test_segmentation_metrics.boxplot(
 plt.suptitle("Model Segmentation Metrics")
 plt.show()
 
-# %% [markdown] tags=["task"]
-# <div class="alert alert-warning">
-# <h3>Questions</h3>
-# <ul>
-# <li> What do these metrics tells us about the performance of the model? </li>
-# <li> How do you interpret the differences in the metrics between the models? </li>
-# <li> How is your model compared to the pretrained model? How can you improve it? </li>
-# </ul>
-# </div>
 
 # %% [markdown]
 # ### Plotting the predictions and segmentations
@@ -2380,7 +2371,7 @@ fluor2phase_config = dict(
 
 # Create the fluorescence to phase model architecture
 print(
-    "Fluorescence-to-phase model created (note: using untrained model for demonstration)"
+    "Fluorescence-to-phase model created (note: we will load a pretrained model)"
 )
 print("In practice, load a pretrained checkpoint for meaningful results")
 
@@ -3024,7 +3015,7 @@ for a in ax.ravel():
     a.axis("off")
 plt.tight_layout()
 
-# %% [markdown] tags=["task"]
+# %% [markdown] tags=[]
 # <div class="alert alert-info">
 #
 # ### Task 3.2: Select a sample batch to test the range of validty of the model

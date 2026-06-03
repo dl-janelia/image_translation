@@ -1,6 +1,6 @@
 # Exercise: Image translation (Virtual Staining)
 
-Written by Eduardo Hirata-Miyasaki, Ziwen Liu, and Shalin Mehta, CZ Biohub San Francisco, with many inputs and bugfixes from present and past TAs of the DL@MBL course (Diane Adjavon, Albert Dominguez Mantes, and others).
+Written by Eduardo Hirata-Miyasaki, Ziwen Liu, and Shalin Mehta, CZ Biohub San Francisco, with many inputs and bugfixes from present and past TAs of the DL course (Diane Adjavon, Albert Dominguez Mantes, Trang Le, and Irene Mancebo).
 
 ## Overview
 

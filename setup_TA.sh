@@ -21,7 +21,7 @@
 # Export DATA_ROOT first (the data folder, holding training/test/
 # pretrained_models). Stage onto a shared mount, then point students at the
 # same DATA_ROOT:
-#   export DATA_ROOT=/mnt/efs/dlmbl/data/06_image_translation
+#   export DATA_ROOT=/mnt/efs/dl_jrc/data/06_image_translation  
 #   bash setup_TA.sh --all
 #   # students: export DATA_ROOT=<same> && bash setup_student.sh
 
