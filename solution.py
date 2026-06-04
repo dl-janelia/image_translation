@@ -69,7 +69,7 @@
 
 # %% [markdown] tags=[]
 # <div class="alert alert-danger">
-# Set your python kernel to <span style="color:black;">06_image_translation</span>
+# Set your python kernel to <span style="color:black;">04_image_translation</span>
 # </div>
 
 # %% [markdown] tags=[]
@@ -174,20 +174,20 @@ seed_everything(42, workers=True)
 # `top_dir` is the folder that contains training/, test/, and
 # pretrained_models/. Your TA staged the data somewhere — find that folder
 # and point `top_dir` at it. (On the course machines it is usually under
-# ~/data/06_image_translation or a shared mount your TA will tell you about.)
+# ~/data/04_image_translation or a shared mount your TA will tell you about.)
 #
 # #######################
 # ##### TODO ########
 # #######################
-top_dir = Path("TODO: /path/to/06_image_translation")  # <-- edit this
+top_dir = Path("TODO: /path/to/04_image_translation")  # <-- edit this
 
 # %% tags=["solution"]
 # DATA_ROOT points directly at the data folder (training/, test/,
-# pretrained_models/), e.g. `export DATA_ROOT=/mnt/efs/dlmbl/data/06_image_translation`.
+# pretrained_models/), e.g. `export DATA_ROOT=/mnt/efs/dl_jrc/data/04_image_translation`.
 # #######################
 # ##### SOLUTION ########
 # #######################
-top_dir = Path(os.environ.get("DATA_ROOT", "~/data/06_image_translation")).expanduser()
+top_dir = Path(os.environ.get("DATA_ROOT", "~/data/04_image_translation")).expanduser()
 
 # %%
 # Derived paths. `top_dir` must point at the folder containing training/,
@@ -198,7 +198,7 @@ data_path = top_dir / "training/a549_hoechst_cellmask_train_val.zarr"
 training_top_dir = Path(f"{os.getcwd()}/data/")
 # Create top_training_dir directory if needed, and launch tensorboard
 training_top_dir.mkdir(parents=True, exist_ok=True)
-log_dir = training_top_dir / "06_image_translation/logs/"
+log_dir = training_top_dir / "04_image_translation/logs/"
 # Create log directory if needed, and launch tensorboard
 log_dir.mkdir(parents=True, exist_ok=True)
 
@@ -1211,7 +1211,7 @@ phase2fluor_model.to(device)
 #
 # ```python
 # phase2fluor_model_ckpt = natsorted(glob(
-#    str(top_dir / "06_image_translation/logs/phase2fluor/version*/checkpoints/*.ckpt")
+#    str(top_dir / "04_image_translation/logs/phase2fluor/version*/checkpoints/*.ckpt")
 # ))[-1]
 # ```
 # <br>
@@ -1220,7 +1220,7 @@ phase2fluor_model.to(device)
 #
 # ```python
 # phase2fluor_model_ckpt = natsorted(glob(
-#  str(top_dir/"06_image_translation/backup/phase2fluor/version_0/checkpoints/*.ckpt")
+#  str(top_dir/"04_image_translation/backup/phase2fluor/version_0/checkpoints/*.ckpt")
 # ))[-1]
 # ```
 
@@ -1385,10 +1385,10 @@ for i, sample in enumerate(test_data.test_dataloader()):
 #
 # <ul>
 # <li>The pretrained checkpoint was downloaded by <code>setup.sh</code> to
-#   <code>~/data/06_image_translation/pretrained_models/VSCyto2D/epoch=399-step=23200.ckpt</code>
+#   <code>~/data/04_image_translation/pretrained_models/VSCyto2D/epoch=399-step=23200.ckpt</code>
 #   — if missing, download it directly from
 #   <a href="https://public.czbiohub.org/comp.micro/viscy/VS_models/VSCyto2D/VSCyto2D/epoch=399-step=23200.ckpt">public.czbiohub.org</a>.
-#   Check with <code>ls ~/data/06_image_translation/pretrained_models/VSCyto2D/</code>.</li>
+#   Check with <code>ls ~/data/04_image_translation/pretrained_models/VSCyto2D/</code>.</li>
 # <li>Load the <b>VSCyto2D</b> model checkpoint and the configuration file</li>
 # <li>Compute the pixel-based metrics and segmentation-based metrics between the model you trained and the pretrained model</li>
 # </ul>
@@ -1469,7 +1469,7 @@ phase2fluor_model_ckpt = natsorted(
     glob(
         str(
             training_top_dir
-            / "06_image_translation/logs/phase2fluor/version*/checkpoints/*.ckpt"
+            / "04_image_translation/logs/phase2fluor/version*/checkpoints/*.ckpt"
         )
     )
 )[-1]
@@ -1477,7 +1477,7 @@ phase2fluor_model_ckpt = natsorted(
 # NOTE: if their model didn't go past epoch 5, lost their checkpoint, or didnt train anything.
 # Uncomment the next lines
 # phase2fluor_model_ckpt = natsorted(glob(
-#  str(top_dir/"06_image_translation/backup/phase2fluor/version_0/checkpoints/*.ckpt")
+#  str(top_dir/"04_image_translation/backup/phase2fluor/version_0/checkpoints/*.ckpt")
 # ))[-1]
 
 phase2fluor_config = dict(
@@ -1574,7 +1574,7 @@ def cellpose_segmentation(
 # Setting the paths for the test data and the output segmentation
 test_data_path = top_dir / "test/a549_hoechst_cellmask_test.zarr"
 output_segmentation_path = (
-    training_top_dir / "06_image_translation/pretrained_model_segmentations.zarr"
+    training_top_dir / "04_image_translation/pretrained_model_segmentations.zarr"
 )
 
 # Creating the dataframes to store the pixel and segmentation metrics
@@ -1992,9 +1992,9 @@ test_dataset.close()
 segmentation_store.close()
 # %%
 # Save the test metrics into a dataframe
-pixel_metrics_path = training_top_dir / "06_image_translation/VS_metrics_pixel.csv"
+pixel_metrics_path = training_top_dir / "04_image_translation/VS_metrics_pixel.csv"
 segmentation_metrics_path = (
-    training_top_dir / "06_image_translation/VS_metrics_segments.csv"
+    training_top_dir / "04_image_translation/VS_metrics_segments.csv"
 )
 test_pixel_metrics.to_csv(pixel_metrics_path)
 test_segmentation_metrics.to_csv(segmentation_metrics_path)
@@ -2370,9 +2370,7 @@ fluor2phase_config = dict(
 )
 
 # Create the fluorescence to phase model architecture
-print(
-    "Fluorescence-to-phase model created (note: we will load a pretrained model)"
-)
+print("Fluorescence-to-phase model created (note: we will load a pretrained model)")
 print("In practice, load a pretrained checkpoint for meaningful results")
 
 print("\nLoading pretrained fluorescence-to-phase model...")

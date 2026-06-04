@@ -23,16 +23,14 @@ sys.stderr.reconfigure(line_buffering=True)
 if "DATA_ROOT" not in os.environ:
     raise SystemExit(
         "DATA_ROOT is not set. Export it first, e.g. "
-        "`export DATA_ROOT=/mnt/efs/dlmbl/data/06_image_translation`."
+        "`export DATA_ROOT=/mnt/efs/dl_jrc/data/04_image_translation`."
     )
 
 # Tell PyTorch's CUDA allocator to grow segments dynamically. Without this,
 # training allocates a bunch of activation chunks, then validation tries to
 # allocate big tensors and can't find a contiguous slot — even though the
 # total free memory would be enough. Set BEFORE importing torch.
-os.environ.setdefault(
-    "PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True"
-)
+os.environ.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
 
 import torch
 from lightning.pytorch import Callback, seed_everything
@@ -95,8 +93,10 @@ YX_PATCH_SIZE = (YX_PATCH, YX_PATCH)
 # num_samples == 0`, so batch_size=1 is rejected. Round up to the nearest
 # valid value rather than crashing inside viscy with an opaque message.
 if BATCH_SIZE % 2 != 0:
-    print(f"  NOTE: BATCH_SIZE={BATCH_SIZE} is incompatible with num_samples=2 "
-          f"in RandWeightedCropd; rounding up to {BATCH_SIZE + 1}.")
+    print(
+        f"  NOTE: BATCH_SIZE={BATCH_SIZE} is incompatible with num_samples=2 "
+        f"in RandWeightedCropd; rounding up to {BATCH_SIZE + 1}."
+    )
     BATCH_SIZE += 1
 
 print(f"  smoke config: batch_size={BATCH_SIZE}, yx_patch={YX_PATCH_SIZE}")
@@ -105,23 +105,31 @@ target_channel = ["Nucl", "Mem"]
 
 normalizations = [
     NormalizeSampled(
-        keys=source_channel, level="fov_statistics",
-        subtrahend="mean", divisor="std",
+        keys=source_channel,
+        level="fov_statistics",
+        subtrahend="mean",
+        divisor="std",
     ),
     NormalizeSampled(
-        keys=target_channel, level="fov_statistics",
-        subtrahend="median", divisor="iqr",
+        keys=target_channel,
+        level="fov_statistics",
+        subtrahend="median",
+        divisor="iqr",
     ),
 ]
 augmentations = [
     RandWeightedCropd(
         keys=source_channel + target_channel,
-        spatial_size=(1, 384, 384), num_samples=2, w_key=target_channel[0],
+        spatial_size=(1, 384, 384),
+        num_samples=2,
+        w_key=target_channel[0],
     ),
     RandAffined(
         keys=source_channel + target_channel,
-        rotate_range=[3.14, 0.0, 0.0], scale_range=[0.0, 0.3, 0.3],
-        prob=0.8, padding_mode="zeros",
+        rotate_range=[3.14, 0.0, 0.0],
+        scale_range=[0.0, 0.3, 0.3],
+        prob=0.8,
+        padding_mode="zeros",
         shear_range=[0.0, 0.01, 0.01],
     ),
     RandAdjustContrastd(keys=source_channel, prob=0.5, gamma=(0.8, 1.2)),
@@ -129,7 +137,9 @@ augmentations = [
     RandGaussianNoised(keys=source_channel, prob=0.5, mean=0.0, std=0.3),
     RandGaussianSmoothd(
         keys=source_channel,
-        sigma_x=(0.25, 0.75), sigma_y=(0.25, 0.75), sigma_z=(0.0, 0.0),
+        sigma_x=(0.25, 0.75),
+        sigma_y=(0.25, 0.75),
+        sigma_z=(0.0, 0.0),
         prob=0.5,
     ),
     CenterSpatialCropd(
@@ -159,13 +169,19 @@ print("\n## Building model ...")
 model = VSUNet(
     architecture="UNeXt2_2D",
     model_config=dict(
-        in_channels=1, out_channels=2,
-        encoder_blocks=[3, 3, 9, 3], dims=[96, 192, 384, 768],
-        decoder_conv_blocks=2, stem_kernel_size=(1, 2, 2),
-        in_stack_depth=1, pretraining=False,
+        in_channels=1,
+        out_channels=2,
+        encoder_blocks=[3, 3, 9, 3],
+        dims=[96, 192, 384, 768],
+        decoder_conv_blocks=2,
+        stem_kernel_size=(1, 2, 2),
+        in_stack_depth=1,
+        pretraining=False,
     ),
     loss_function=MixedLoss(l1_alpha=0.5, l2_alpha=0.0, ms_dssim_alpha=0.5),
-    schedule="WarmupCosine", lr=6e-4, log_batches_per_epoch=2,
+    schedule="WarmupCosine",
+    lr=6e-4,
+    log_batches_per_epoch=2,
     freeze_encoder=False,
 )
 
@@ -185,27 +201,38 @@ class EmptyCacheBeforeValidation(Callback):
 
 print("\n## [1/3] fast_dev_run ...")
 VisCyTrainer(
-    accelerator="gpu", devices=[0],
-    precision="16-mixed", fast_dev_run=True,
+    accelerator="gpu",
+    devices=[0],
+    precision="16-mixed",
+    fast_dev_run=True,
     callbacks=[EmptyCacheBeforeValidation()],
 ).fit(model, datamodule=dm)
 torch.cuda.empty_cache()
-print(f"    fast_dev_run OK  (GPU after empty_cache: "
-      f"{torch.cuda.memory_allocated() / 1e9:.2f} GB allocated)")
+print(
+    f"    fast_dev_run OK  (GPU after empty_cache: "
+    f"{torch.cuda.memory_allocated() / 1e9:.2f} GB allocated)"
+)
 
 print("\n## [2/3] 2-epoch limited run ...")
 VisCyTrainer(
-    accelerator="gpu", devices=[0],
-    max_epochs=2, precision="16-mixed",
+    accelerator="gpu",
+    devices=[0],
+    max_epochs=2,
+    precision="16-mixed",
     log_every_n_steps=1,
-    limit_train_batches=5, limit_val_batches=2,
+    limit_train_batches=5,
+    limit_val_batches=2,
     logger=TensorBoardLogger(
-        save_dir="/tmp/ta_smoke", name="phase2fluor", log_graph=False,
+        save_dir="/tmp/ta_smoke",
+        name="phase2fluor",
+        log_graph=False,
     ),
     enable_progress_bar=False,
     callbacks=[EmptyCacheBeforeValidation()],
 ).fit(model, datamodule=dm)
-print(f"    2-epoch run OK  (peak GPU: {torch.cuda.max_memory_allocated() / 1e9:.2f} GB)")
+print(
+    f"    2-epoch run OK  (peak GPU: {torch.cuda.max_memory_allocated() / 1e9:.2f} GB)"
+)
 del model
 torch.cuda.empty_cache()
 
@@ -217,10 +244,14 @@ pretrained = VSUNet.load_from_checkpoint(
     VSCYTO2D_CKPT,
     architecture="UNeXt2_2D",
     model_config=dict(
-        in_channels=1, out_channels=2,
-        encoder_blocks=[3, 3, 9, 3], dims=[96, 192, 384, 768],
-        decoder_conv_blocks=2, stem_kernel_size=(1, 2, 2),
-        in_stack_depth=1, pretraining=False,
+        in_channels=1,
+        out_channels=2,
+        encoder_blocks=[3, 3, 9, 3],
+        dims=[96, 192, 384, 768],
+        decoder_conv_blocks=2,
+        stem_kernel_size=(1, 2, 2),
+        in_stack_depth=1,
+        pretraining=False,
     ),
     map_location="cuda:0",
 )
@@ -230,6 +261,7 @@ print("    pretrained checkpoint loads + moves to GPU OK")
 # Cellpose import + model construction (no segmentation — that takes minutes)
 print("\n## Cellpose v4+ import + model construction ...")
 from cellpose import models
+
 cp = models.CellposeModel(gpu=True, device=torch.device("cuda:0"))
 print(f"    cellpose model ready ({type(cp).__name__})")
 

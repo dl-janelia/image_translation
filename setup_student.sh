@@ -11,12 +11,12 @@
 # pretrained_models; the notebook reads it too), then run from the exercise
 # folder:
 #
-#   export DATA_ROOT=/mnt/efs/dl_jrc/data/06_image_translation  
-#   cd 06_image_translation
+#   export DATA_ROOT=/mnt/efs/dl_jrc/data/04_image_translation  
+#   cd 04_image_translation
 #   bash setup_student.sh
 #
 # If you need to fetch the data yourself:
-#   export DATA_ROOT=$HOME/data/06_image_translation
+#   export DATA_ROOT=$HOME/data/04_image_translation
 #   bash download_data.sh
 #
 # Requires conda on PATH (install Miniconda if missing:
@@ -26,13 +26,13 @@ set -euo pipefail
 
 START_DIR=$(pwd)
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_NAME="${ENV_NAME:-06_image_translation}"
+ENV_NAME="${ENV_NAME:-04_image_translation}"
 KERNEL_NAME="${KERNEL_NAME:-$ENV_NAME}"
 PYTHON_VERSION="${PYTHON_VERSION:-3.12}"
 
 if [[ -z "${DATA_ROOT:-}" ]]; then
     echo "ERROR: DATA_ROOT is not set. Export the data folder first, e.g.:" >&2
-    echo "  export DATA_ROOT=/mnt/efs/dlmbl/data/06_image_translation" >&2
+    echo "  export DATA_ROOT=/mnt/efs/dl_jrc/data/04_image_translation" >&2
     exit 1
 fi
 

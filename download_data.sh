@@ -3,7 +3,7 @@
 # Download the exercise data + checkpoints into $DATA_ROOT.
 # $DATA_ROOT is the folder that will hold training/, test/, pretrained_models/.
 #
-#   export DATA_ROOT=/mnt/efs/dlmbl/data/06_image_translation
+#   export DATA_ROOT=/mnt/efs/dl_jrc/data/04_image_translation
 #   bash download_data.sh
 #
 # Skips the download if the data is already present (FORCE_DOWNLOAD=1 overrides).
@@ -11,7 +11,7 @@
 set -euo pipefail
 
 if [[ -z "${DATA_ROOT:-}" ]]; then
-    echo "ERROR: export DATA_ROOT first, e.g. /mnt/efs/dlmbl/data/06_image_translation" >&2
+    echo "ERROR: export DATA_ROOT first, e.g. /mnt/efs/dl_jrc/data/04_image_translation" >&2
     exit 1
 fi
 

@@ -21,19 +21,19 @@
 # Export DATA_ROOT first (the data folder, holding training/test/
 # pretrained_models). Stage onto a shared mount, then point students at the
 # same DATA_ROOT:
-#   export DATA_ROOT=/mnt/efs/dl_jrc/data/06_image_translation  
+#   export DATA_ROOT=/mnt/efs/dl_jrc/data/04_image_translation  
 #   bash setup_TA.sh --all
 #   # students: export DATA_ROOT=<same> && bash setup_student.sh
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_NAME="${ENV_NAME:-06_image_translation}"
+ENV_NAME="${ENV_NAME:-04_image_translation}"
 VALIDATE_ENV_NAME="${VALIDATE_ENV_NAME:-${ENV_NAME}-validate}"
 
 if [[ -z "${DATA_ROOT:-}" ]]; then
     echo "ERROR: DATA_ROOT is not set. Export the data folder first, e.g.:" >&2
-    echo "  export DATA_ROOT=/mnt/efs/dlmbl/data/06_image_translation" >&2
+    echo "  export DATA_ROOT=/mnt/efs/dl_jrc/data/04_image_translation" >&2
     exit 1
 fi
 

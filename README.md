@@ -1,6 +1,6 @@
 # Exercise: Image translation (Virtual Staining)
 
-Written by Eduardo Hirata-Miyasaki, Ziwen Liu, and Shalin Mehta, CZ Biohub San Francisco, with many inputs and bugfixes from present and past TAs of the DL course (Diane Adjavon, Albert Dominguez Mantes, Trang Le, and Irene Mancebo).
+Written by Eduardo Hirata-Miyasaki, Ziwen Liu, and Shalin Mehta, CZ Biohub San Francisco, with many inputs and bugfixes from present and past TAs of the DL course (Diane Adjavon, Albert Dominguez Mantes, Trang Le, and Irene Mancebo Laguna).
 
 ## Overview
 
@@ -39,12 +39,12 @@ From your clone of the course repo:
 
 ```bash
 git submodule update --init --recursive --remote
-cd 06_image_translation
-export DATA_ROOT=<TODO: course data folder>   # e.g. /mnt/efs/.../06_image_translation
+cd 04_image_translation
+export DATA_ROOT=<TODO: course data folder>   # e.g. /mnt/efs/.../04_image_translation
 bash setup_student.sh
 ```
 
-`setup_student.sh` creates the `06_image_translation` conda env, installs
+`setup_student.sh` creates the `04_image_translation` conda env, installs
 [pyproject.toml](pyproject.toml) into it, and registers the matching Jupyter
 kernel. It does **not** download data — that's pre-staged by your TA. If you
 need to fetch it yourself, point `DATA_ROOT` at the folder where you want
@@ -65,12 +65,12 @@ Activate the env and launch Jupyter Lab (keep `DATA_ROOT` exported in the
 same shell so the notebook can find the data):
 
 ```bash
-export DATA_ROOT=<TODO: course data folder>   # e.g. /mnt/efs/.../06_image_translation
-conda activate 06_image_translation
+export DATA_ROOT=<TODO: course data folder>   # e.g. /mnt/efs/.../04_image_translation
+conda activate 04_image_translation
 jupyter lab
 ```
 
-Open `**exercise.ipynb**`, pick the **Python (06_image_translation)**
+Open `**exercise.ipynb**`, pick the **Python (04_image_translation)**
 kernel, and run cells with `Shift+Enter`. Peek at `**solution.ipynb`**
 when you get stuck.
 
@@ -86,14 +86,14 @@ Stage data, validate the install, and smoke-test the notebook with one
 command:
 
 ```bash
-export DATA_ROOT=<TODO: course data folder>   # e.g. /mnt/efs/.../06_image_translation
+export DATA_ROOT=<TODO: course data folder>   # e.g. /mnt/efs/.../04_image_translation
 bash setup_TA.sh --all
 ```
 
 See `bash setup_TA.sh --help` for individual phases. To only stage the data:
 
 ```bash
-export DATA_ROOT=<TODO: course data folder>   # e.g. /mnt/efs/.../06_image_translation
+export DATA_ROOT=<TODO: course data folder>   # e.g. /mnt/efs/.../04_image_translation
 bash download_data.sh
 ```
 
@@ -106,10 +106,10 @@ bash prepare-exercise.sh
 Re-register the Jupyter kernel if it disappears from the dropdown:
 
 ```bash
-conda activate 06_image_translation
+conda activate 04_image_translation
 python -m ipykernel install --user \
-    --name 06_image_translation \
-    --display-name "Python (06_image_translation)"
+    --name 04_image_translation \
+    --display-name "Python (04_image_translation)"
 ```
 
 ## References

@@ -2,7 +2,7 @@
 # Regenerate exercise.ipynb and solution.ipynb from solution.py.
 #
 # Picks the first jupytext / jupyter on $PATH. Conda users:
-# `conda activate 06_image_translation` first. The GitHub Actions
+# `conda activate 04_image_translation` first. The GitHub Actions
 # build-notebooks workflow installs jupytext directly with pip, so plain
 # $PATH is fine there too.
 set -euo pipefail
