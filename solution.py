@@ -18,7 +18,7 @@
 # - Visualize the image transform learned by the model
 # - Understand the failure modes of the trained model
 #
-# [![HEK293T](https://raw.githubusercontent.com/mehta-lab/VisCy/main/docs/figures/svideo_1.png)](https://github.com/mehta-lab/VisCy/assets/67518483/d53a81eb-eb37-44f3-b522-8bd7bddc7755)
+# [![HEK293T](https://raw.githubusercontent.com/mehta-lab/VisCy/18d2a922ab8f41762249f9fcfff675ab8f34f32c/applications/cytoland/docs/asset/svideo_1.png)](https://github-production-user-asset-6210df.s3.amazonaws.com/67518483/343891935-d53a81eb-eb37-44f3-b522-8bd7bddc7755.mp4?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIAVCODYLSA53PQK4ZA%2F20260604%2Fus-east-1%2Fs3%2Faws4_request&X-Amz-Date=20260604T191111Z&X-Amz-Expires=300&X-Amz-Signature=7cbe992928146b9284ed045c9a8e8fc5e18d59308dddbfcbb26362c653ebd0b2&X-Amz-SignedHeaders=host&response-content-type=video%2Fmp4)
 # (Click on image to play video)
 #
 # %% [markdown] tags=[]
