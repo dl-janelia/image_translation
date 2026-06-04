@@ -59,7 +59,10 @@ eval "$(conda shell.bash hook)"
 conda activate "$ENV_NAME"
 echo "Active env: $CONDA_DEFAULT_ENV (python: $(python --version))"
 
-# --- 2. Install dependencies into the active conda env ---------------------
+# torchview's draw_graph() needs the `dot` binary, which pip can't install.
+conda install -n "$ENV_NAME" -y -c conda-forge graphviz
+
+# --- 3. Install dependencies into the active conda env ---------------------
 # Use `uv pip install --python <conda python>` (NOT `uv sync`, which is
 # project-mode and creates its own ./.venv ignoring CONDA_PREFIX). This
 # installs straight into the conda env's site-packages.
@@ -73,7 +76,7 @@ if [[ "$INSTALL_MODE" == "workspace" ]]; then
     uv pip install --python "$CONDA_PY" -e "$MONOREPO_ROOT/applications/cytoland[metrics]"
 fi
 
-# --- 3. Register the Jupyter kernel ----------------------------------------
+# --- 4. Register the Jupyter kernel ----------------------------------------
 python -m ipykernel install --user \
     --name "$KERNEL_NAME" --display-name "Python ($KERNEL_NAME)"
 echo "Registered Jupyter kernel: $KERNEL_NAME"
