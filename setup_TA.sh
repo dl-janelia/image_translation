@@ -18,24 +18,18 @@
 #   bash setup_TA.sh --smoke          # smoke-test notebook on GPU
 #   bash setup_TA.sh --all            # all three (recommended ~1 week before)
 #
-# Export DATA_ROOT first (the data folder, holding training/test/
-# pretrained_models). Stage onto a shared mount, then point students at the
-# same DATA_ROOT:
-#   export DATA_ROOT=/mnt/efs/dl_jrc/data/04_image_translation  
-#   bash setup_TA.sh --all
-#   # students: export DATA_ROOT=<same> && bash setup_student.sh
+# DATA_ROOT (the data folder, holding training/test/pretrained_models)
+# defaults to the course mount, which is where solution.py looks for the
+# data. Override only if you are staging elsewhere:
+#   bash setup_TA.sh --all                                  # default mount
+#   DATA_ROOT=/custom/path bash setup_TA.sh --all           # custom
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_NAME="${ENV_NAME:-04_image_translation}"
 VALIDATE_ENV_NAME="${VALIDATE_ENV_NAME:-${ENV_NAME}-validate}"
-
-if [[ -z "${DATA_ROOT:-}" ]]; then
-    echo "ERROR: DATA_ROOT is not set. Export the data folder first, e.g.:" >&2
-    echo "  export DATA_ROOT=/mnt/efs/dl_jrc/data/04_image_translation" >&2
-    exit 1
-fi
+DATA_ROOT="${DATA_ROOT:-/mnt/efs/dl_jrc/data/04_image_translation}"
 
 require_conda() {
     command -v conda >/dev/null 2>&1 && return 0
@@ -115,8 +109,7 @@ TA setup complete.
   - data:       $DATA_ROOT
   - phases run: stage=$DO_STAGE install=$DO_INSTALL smoke=$DO_SMOKE
 
-Tell students to run (same DATA_ROOT reuses the staged data):
-  export DATA_ROOT=$DATA_ROOT
+Tell students to run (the data at $DATA_ROOT is reused automatically):
   bash setup_student.sh
 --------------------------------------------------------------------
 EOF

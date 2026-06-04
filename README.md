@@ -40,18 +40,16 @@ From your clone of the course repo:
 ```bash
 git submodule update --init --recursive --remote
 cd 04_image_translation
-export DATA_ROOT=<TODO: course data folder>   # e.g. /mnt/efs/.../04_image_translation
 bash setup_student.sh
 ```
 
 `setup_student.sh` creates the `04_image_translation` conda env, installs
 [pyproject.toml](pyproject.toml) into it, and registers the matching Jupyter
-kernel. It does **not** download data — that's pre-staged by your TA. If you
-need to fetch it yourself, point `DATA_ROOT` at the folder where you want
-the data to live, then run the downloader:
+kernel. It does **not** download data — that's pre-staged by your TA at
+`/mnt/efs/dl_jrc/data/04_image_translation`, which is where the notebook
+expects to find it. If you need to fetch it yourself, run the downloader:
 
 ```bash
-export DATA_ROOT=/where/you/want/the/data   # this folder gets training/, test/, ...
 bash download_data.sh
 ```
 
@@ -61,11 +59,9 @@ don't have it.
 
 ## Run the exercise
 
-Activate the env and launch Jupyter Lab (keep `DATA_ROOT` exported in the
-same shell so the notebook can find the data):
+Activate the env and launch Jupyter Lab:
 
 ```bash
-export DATA_ROOT=<TODO: course data folder>   # e.g. /mnt/efs/.../04_image_translation
 conda activate 04_image_translation
 jupyter lab
 ```
@@ -83,17 +79,17 @@ block-by-block in
 ## For TAs
 
 Stage data, validate the install, and smoke-test the notebook with one
-command:
+command. The data is staged at `/mnt/efs/dl_jrc/data/04_image_translation`
+(the path `solution.py` reads); override with `DATA_ROOT=/custom/path` only
+if you are staging elsewhere:
 
 ```bash
-export DATA_ROOT=<TODO: course data folder>   # e.g. /mnt/efs/.../04_image_translation
 bash setup_TA.sh --all
 ```
 
 See `bash setup_TA.sh --help` for individual phases. To only stage the data:
 
 ```bash
-export DATA_ROOT=<TODO: course data folder>   # e.g. /mnt/efs/.../04_image_translation
 bash download_data.sh
 ```
 

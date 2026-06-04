@@ -172,22 +172,21 @@ seed_everything(42, workers=True)
 # Set the path to the data.
 #
 # `top_dir` is the folder that contains training/, test/, and
-# pretrained_models/. Your TA staged the data somewhere — find that folder
-# and point `top_dir` at it. (On the course machines it is usually under
-# ~/data/04_image_translation or a shared mount your TA will tell you about.)
+# pretrained_models/. On the course machines the data is staged at
+# /mnt/efs/dl_jrc/data/04_image_translation, so you can leave this as is.
 #
 # #######################
 # ##### TODO ########
 # #######################
-top_dir = Path("TODO: /path/to/04_image_translation")  # <-- edit this
+top_dir = Path("/mnt/efs/dl_jrc/data/04_image_translation")
 
 # %% tags=["solution"]
-# DATA_ROOT points directly at the data folder (training/, test/,
-# pretrained_models/), e.g. `export DATA_ROOT=/mnt/efs/dl_jrc/data/04_image_translation`.
+# `top_dir` points directly at the data folder (training/, test/,
+# pretrained_models/).
 # #######################
 # ##### SOLUTION ########
 # #######################
-top_dir = Path(os.environ.get("DATA_ROOT", "~/data/04_image_translation")).expanduser()
+top_dir = Path("/mnt/efs/dl_jrc/data/04_image_translation")
 
 # %%
 # Derived paths. `top_dir` must point at the folder containing training/,
@@ -1385,10 +1384,10 @@ for i, sample in enumerate(test_data.test_dataloader()):
 #
 # <ul>
 # <li>The pretrained checkpoint was downloaded by <code>setup.sh</code> to
-#   <code>~/data/04_image_translation/pretrained_models/VSCyto2D/epoch=399-step=23200.ckpt</code>
+#   <code>/mnt/efs/dl_jrc/data/04_image_translation/pretrained_models/VSCyto2D/epoch=399-step=23200.ckpt</code>
 #   — if missing, download it directly from
 #   <a href="https://public.czbiohub.org/comp.micro/viscy/VS_models/VSCyto2D/VSCyto2D/epoch=399-step=23200.ckpt">public.czbiohub.org</a>.
-#   Check with <code>ls ~/data/04_image_translation/pretrained_models/VSCyto2D/</code>.</li>
+#   Check with <code>ls /mnt/efs/dl_jrc/data/04_image_translation/pretrained_models/VSCyto2D/</code>.</li>
 # <li>Load the <b>VSCyto2D</b> model checkpoint and the configuration file</li>
 # <li>Compute the pixel-based metrics and segmentation-based metrics between the model you trained and the pretrained model</li>
 # </ul>

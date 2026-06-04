@@ -7,17 +7,14 @@
 # pre-staged by a TA on a shared mount or fetched separately with
 # download_data.sh.
 #
-# Export DATA_ROOT first (the data folder, holding training/test/
-# pretrained_models; the notebook reads it too), then run from the exercise
-# folder:
+# Run from the exercise folder:
 #
-#   export DATA_ROOT=/mnt/efs/dl_jrc/data/04_image_translation  
 #   cd 04_image_translation
 #   bash setup_student.sh
 #
-# If you need to fetch the data yourself:
-#   export DATA_ROOT=$HOME/data/04_image_translation
-#   bash download_data.sh
+# The data is pre-staged by your TA at the course mount
+# (/mnt/efs/dl_jrc/data/04_image_translation), which is where solution.py
+# looks for it. If you need to fetch it yourself: bash download_data.sh
 #
 # Requires conda on PATH (install Miniconda if missing:
 # https://docs.conda.io/en/latest/miniconda.html).
@@ -29,12 +26,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_NAME="${ENV_NAME:-04_image_translation}"
 KERNEL_NAME="${KERNEL_NAME:-$ENV_NAME}"
 PYTHON_VERSION="${PYTHON_VERSION:-3.12}"
-
-if [[ -z "${DATA_ROOT:-}" ]]; then
-    echo "ERROR: DATA_ROOT is not set. Export the data folder first, e.g.:" >&2
-    echo "  export DATA_ROOT=/mnt/efs/dl_jrc/data/04_image_translation" >&2
-    exit 1
-fi
+DATA_ROOT="${DATA_ROOT:-/mnt/efs/dl_jrc/data/04_image_translation}"
 
 if ! command -v conda >/dev/null 2>&1; then
     echo "ERROR: conda is not on your PATH. Install Miniconda first:" >&2
@@ -113,7 +105,8 @@ if [[ ! -d "$DATA_ROOT/training" ]]; then
 WARNING: no data found at DATA_ROOT=$DATA_ROOT
 
 The conda env is ready, but the exercise data is NOT there yet. Either:
-  - re-export DATA_ROOT to the folder where your TA staged the data
+  - ask your TA to stage the data at $DATA_ROOT, or
+  - fetch it yourself with: bash download_data.sh
 ####################################################################
 EOF
 fi

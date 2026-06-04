@@ -1,19 +1,17 @@
 #!/usr/bin/env bash
 #
-# Download the exercise data + checkpoints into $DATA_ROOT.
-# $DATA_ROOT is the folder that will hold training/, test/, pretrained_models/.
+# Download the exercise data + checkpoints into DATA_ROOT.
+# DATA_ROOT is the folder that will hold training/, test/, pretrained_models/.
+# It defaults to the course mount; override only if you are staging elsewhere:
 #
-#   export DATA_ROOT=/mnt/efs/dl_jrc/data/04_image_translation
-#   bash download_data.sh
+#   bash download_data.sh                                          # default mount
+#   DATA_ROOT=/where/you/want/the/data bash download_data.sh       # custom
 #
 # Skips the download if the data is already present (FORCE_DOWNLOAD=1 overrides).
 
 set -euo pipefail
 
-if [[ -z "${DATA_ROOT:-}" ]]; then
-    echo "ERROR: export DATA_ROOT first, e.g. /mnt/efs/dl_jrc/data/04_image_translation" >&2
-    exit 1
-fi
+DATA_ROOT="${DATA_ROOT:-/mnt/efs/dl_jrc/data/04_image_translation}"
 
 mkdir -p "$DATA_ROOT"/{training,test,pretrained_models/DLCourse}
 

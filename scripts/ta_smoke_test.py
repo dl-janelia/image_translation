@@ -17,14 +17,10 @@ from pathlib import Path
 sys.stdout.reconfigure(line_buffering=True)
 sys.stderr.reconfigure(line_buffering=True)
 
-# Fail fast on a missing DATA_ROOT before paying for the heavy imports below.
 # DATA_ROOT points directly at the data folder (training/, test/,
-# pretrained_models/), matching download_data.sh.
-if "DATA_ROOT" not in os.environ:
-    raise SystemExit(
-        "DATA_ROOT is not set. Export it first, e.g. "
-        "`export DATA_ROOT=/mnt/efs/dl_jrc/data/04_image_translation`."
-    )
+# pretrained_models/), matching download_data.sh. Defaults to the course
+# mount; override the env var only when staging elsewhere.
+DATA_ROOT_DEFAULT = "/mnt/efs/dl_jrc/data/04_image_translation"
 
 # Tell PyTorch's CUDA allocator to grow segments dynamically. Without this,
 # training allocates a bunch of activation chunks, then validation tries to
@@ -53,7 +49,7 @@ from viscy_utils.trainer import VisCyTrainer
 
 seed_everything(42, workers=True)
 
-DATA_ROOT = Path(os.environ["DATA_ROOT"]).expanduser()
+DATA_ROOT = Path(os.environ.get("DATA_ROOT", DATA_ROOT_DEFAULT)).expanduser()
 TRAINING_ZARR = DATA_ROOT / "training" / "a549_hoechst_cellmask_train_val.zarr"
 TEST_ZARR = DATA_ROOT / "test" / "a549_hoechst_cellmask_test.zarr"
 VSCYTO2D_CKPT = (
