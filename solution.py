@@ -48,7 +48,7 @@
 # for image-based phenotyping including the robust virtual staining of landmark organelles.
 #
 # VisCy exploits recent advances in data and metadata formats
-# ([OME-zarr](https://www.nature.com/articles/s41592-021-01326-w)) and DL frameworks,
+# ([OME-zarr](https://link.springer.com/article/10.1007/s00418-023-02209-1)) and DL frameworks,
 # [PyTorch Lightning](https://lightning.ai/) and [MONAI](https://monai.io/).
 
 # ### References
@@ -73,7 +73,7 @@
 # </div>
 
 # %% [markdown] tags=[]
-# ## PyTorch Lightning in one minute
+# ## PyTorch Lightning Intro
 #
 # If you've used plain PyTorch you already know the pattern: write a model, write a
 # `for batch in dataloader` loop, move tensors to `cuda`, call `loss.backward()`, step
@@ -99,7 +99,7 @@
 #
 # VisCy builds on top of Lightning and provides the `HCSDataModule` and `VSUNet`
 # classes so you don't have to subclass `LightningDataModule` / `LightningModule`
-# yourself — you configure them via constructor arguments and let Lightning run.
+# yourself. You configure them via constructor arguments and let Lightning run.
 # When you see `trainer.fit(...)` below, that single call replaces a ~50-line hand-
 # written training loop.
 
@@ -262,6 +262,14 @@ tensorboard_process = launch_tensorboard(log_dir)
 # (`0` = 2048×2048, `1` = 1024×1024, `2` = 512×512, `3` = 256×256), and a single
 # time point. Pyramid levels let you preview a whole FOV cheaply at low
 # resolution before zooming in to full resolution for training/inference.
+
+# %% [markdown]
+# ![OME-Zarr HCS layout](https://media.springernature.com/lw685/springer-static/image/art%3A10.1007%2Fs00418-023-02209-1/MediaObjects/418_2023_2209_Fig2_HTML.png)
+#
+# *Figure 2 from Moore et al. (2023), "OME-Zarr: a cloud-optimized bioimaging
+# file format with international community support", Histochemistry and Cell
+# Biology. Reproduced under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
+# Article: https://link.springer.com/article/10.1007/s00418-023-02209-1*
 
 # %% [markdown] tags=[]
 # <div class="alert alert-warning">
@@ -1234,8 +1242,8 @@ phase2fluor_model.to(device)
 #     in_stack_depth=1,
 #     pretraining=False,
 # )
-# Load the model checkpoint
-# phase2fluor_model = VSUNet.load_from_checkpoint(
+#
+# phase2fluor_model = VSUNet.load_from_checkpoint( #Load the model checkpoint
 #     phase2fluor_model_ckpt,
 #     architecture="UNeXt2_2D",
 #     model_config = phase2fluor_config,
@@ -2854,25 +2862,32 @@ from skimage.exposure import rescale_intensity  # noqa: E402
 from sklearn.decomposition import PCA  # noqa: E402
 
 
-def feature_map_pca(feature_map: np.array, n_components: int = 8) -> PCA:
+def feature_map_pca(feature_map: np.array, n_components: int = 3) -> PCA:
     """
-    Compute PCA on a feature map.
+    Compute PCA on a feature map, treating each pixel as a sample.
     :param np.array feature_map: (C, H, W) feature map
     :param int n_components: number of components to keep
     :return: PCA: fit sklearn PCA object
     """
-    # (C, H, W) -> (C, H*W)
-    feat = feature_map.reshape(feature_map.shape[0], -1)
+    # (C, H, W) -> (H*W, C): one row per pixel, one column (feature) per channel.
+    c = feature_map.shape[0]
+    feat = feature_map.reshape(c, -1).T
     pca = PCA(n_components=n_components)
     pca.fit(feat)
     return pca
 
 
-def pcs_to_rgb(feat: np.ndarray, n_components: int = 8) -> np.ndarray:
+def pcs_to_rgb(feat: np.ndarray, n_components: int = 3) -> np.ndarray:
+    # Project every pixel's C-dim feature vector onto the top 3 PCs, then map
+    # the 3 projections to RGB. `transform` (the projected data), not
+    # `components_` (the basis vectors).
+    c, h, w = feat[0].shape
+    pixels = feat[0].reshape(c, -1).T  # (H*W, C)
     pca = feature_map_pca(feat[0], n_components=n_components)
-    pc_first_3 = pca.components_[:3].reshape(3, *feat.shape[-2:])
+    projected = pca.transform(pixels)[:, :3].reshape(h, w, 3)
     return np.stack(
-        [rescale_intensity(pc, out_range=(0, 1)) for pc in pc_first_3], axis=-1
+        [rescale_intensity(projected[..., i], out_range=(0, 1)) for i in range(3)],
+        axis=-1,
     )
 
 
@@ -2990,7 +3005,7 @@ with torch.inference_mode():
 # clip_p, clip_highlight) are imported from utils.py at the top of the
 # notebook.
 f, ax = plt.subplots(10, 1, figsize=(5, 25))
-n_components = 4
+n_components = 3
 ax[0].imshow(phase_img[0, 0, 0], cmap="gray")
 ax[0].set_title(f"Phase {phase_img.shape[1:]}")
 ax[-1].imshow(clip_p(composite_nuc_mem(fluo, GREEN, MAGENTA)))
