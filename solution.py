@@ -431,7 +431,7 @@ data_module = HCSDataModule(
     target_channel=target_channel,
     split_ratio=0.8,
     batch_size=BATCH_SIZE,
-    num_workers=0,
+    num_workers=4,
     yx_patch_size=(256, 256),  # larger patch size makes it easy to see augmentations.
     # Crop to yx_patch_size so the visualization batch is 256x256, not the
     # full 2048x2048 FOV — otherwise this single un-augmented batch would
@@ -487,7 +487,7 @@ data_module = HCSDataModule(
     target_channel=target_channel,
     split_ratio=0.8,
     batch_size=BATCH_SIZE,
-    num_workers=0,
+    num_workers=4,
     yx_patch_size=(256, 256),  # larger patch size makes it easy to see augmentations.
     # Crop to yx_patch_size so the visualization batch is 256x256, not the
     # full 2048x2048 FOV — otherwise this single un-augmented batch would
@@ -866,7 +866,7 @@ phase2fluor_2D_data = HCSDataModule(
     z_window_size=1,
     split_ratio=0.8,
     batch_size=BATCH_SIZE,
-    num_workers=0,
+    num_workers=4,
     yx_patch_size=YX_PATCH_SIZE,
     augmentations=augmentations,
     # val_augmentations defaults to empty, which means validation batches are
@@ -944,7 +944,7 @@ phase2fluor_2D_data = HCSDataModule(
     z_window_size=1,
     split_ratio=0.8,
     batch_size=BATCH_SIZE,
-    num_workers=0,
+    num_workers=4,
     yx_patch_size=YX_PATCH_SIZE,
     augmentations=augmentations,
     # val_augmentations defaults to empty, which means validation batches are
@@ -1255,7 +1255,7 @@ test_data = HCSDataModule(
     target_channel=target_channel,
     z_window_size=1,
     batch_size=1,
-    num_workers=0,
+    num_workers=4,
 )
 test_data.setup("test")
 
@@ -2276,7 +2276,7 @@ test_data_fluor2phase = HCSDataModule(
     target_channel=target_channel_labelfree,
     z_window_size=1,
     batch_size=1,
-    num_workers=0,
+    num_workers=4,
 )
 test_data_fluor2phase.setup("test")
 
@@ -2401,7 +2401,7 @@ test_data_fluor2phase = HCSDataModule(
     target_channel=target_channel_labelfree,
     z_window_size=1,
     batch_size=1,
-    num_workers=0,
+    num_workers=4,
 )
 test_data_fluor2phase.setup("test")
 
@@ -3055,7 +3055,7 @@ phase2fluor_2D_data = HCSDataModule(
     z_window_size=1,
     split_ratio=0.8,
     batch_size=1,
-    num_workers=0,
+    num_workers=4,
     yx_patch_size=YX_PATCH_SIZE,
     augmentations=[],
     normalizations=normalizations,
