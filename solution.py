@@ -1210,7 +1210,7 @@ phase2fluor_model.to(device)
 #
 # ```python
 # phase2fluor_model_ckpt = natsorted(glob(
-#    str(top_dir / "04_image_translation/logs/phase2fluor/version*/checkpoints/*.ckpt")
+#    str(training_top_dir / "04_image_translation/logs/phase2fluor/version*/checkpoints/*.ckpt")
 # ))[-1]
 # ```
 # <br>
@@ -1219,7 +1219,7 @@ phase2fluor_model.to(device)
 #
 # ```python
 # phase2fluor_model_ckpt = natsorted(glob(
-#  str(top_dir/"04_image_translation/backup/phase2fluor/version_0/checkpoints/*.ckpt")
+#  str(top_dir/"04_image_translation/pretrained_models/backup/version_10/checkpoints/*.ckpt")
 # ))[-1]
 # ```
 
@@ -1476,7 +1476,7 @@ phase2fluor_model_ckpt = natsorted(
 # NOTE: if their model didn't go past epoch 5, lost their checkpoint, or didnt train anything.
 # Uncomment the next lines
 # phase2fluor_model_ckpt = natsorted(glob(
-#  str(top_dir/"04_image_translation/backup/phase2fluor/version_0/checkpoints/*.ckpt")
+#  str(training_top_dir/"04_image_translation/backup/phase2fluor/version_0/checkpoints/*.ckpt")
 # ))[-1]
 
 phase2fluor_config = dict(
