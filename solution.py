@@ -1077,8 +1077,8 @@ steps_per_epoch = n_samples // BATCH_SIZE  # steps per epoch.
 # ##### TODO ########
 # #######################
 # How many passes over the training set should we run? Pick a value
-# (30-40 is a reasonable starting point on the course AWS T4 GPUs —
-# each epoch is ~0.5 min, so ~15-20 min total). You can monitor training
+# (20-30 is a reasonable starting point on the course AWS T4 GPUs —
+# each epoch is ~0.5 min, so ~10-15 min total). You can monitor training
 # progress in TensorBoard
 n_epochs = ...  # TODO
 
@@ -1246,6 +1246,20 @@ test_data = HCSDataModule(
     z_window_size=1,
     batch_size=1,
     num_workers=4,
+    normalizations=[
+        NormalizeSampled(
+            keys=source_channel,
+            level="fov_statistics",
+            subtrahend="mean",
+            divisor="std",
+        ),
+        NormalizeSampled(
+            keys=target_channel,
+            level="fov_statistics",
+            subtrahend="median",
+            divisor="iqr",
+        ),
+    ],
 )
 test_data.setup("test")
 
@@ -1612,155 +1626,67 @@ nuc_label_cidx = channel_names.index("nuclei_segmentation")
 # Let's compare nucleus and membrane segmentation across all three models
 
 # %%
-# Get a sample FOV for visualization
-positions = list(test_dataset.positions())
-sample_fov, sample_pos = positions[0]  # Use first FOV as example
+# Compare real fluorescence vs virtual staining (trained & pretrained models),
+# with Cellpose segmentation, on a 300x300 center crop of one test FOV.
+positions = list(test_dataset.positions())  # reused by the metrics cell below
+fov, sample_pos = positions[0]  # use the first FOV as example
 
 T, C, Z, Y, X = sample_pos.data.shape
-Z_slice = slice(Z // 2, Z // 2 + 1)
+z = Z // 2
+crop = 300
+ys, xs = Y // 2 - crop // 2, X // 2 - crop // 2
+sl = (slice(ys, ys + crop), slice(xs, xs + crop))  # center-crop selector
 
-# Get the data
-sample_phase = sample_pos.data[:, phase_cidx : phase_cidx + 1, Z_slice]
-sample_nucleus = sample_pos.data[0, nuc_cidx : nuc_cidx + 1, Z_slice]
-sample_membrane = sample_pos.data[0, mem_cidx : mem_cidx + 1, Z_slice]
+# Phase input MUST be normalized the same way the models were trained
+# (per-FOV z-score, same as `normalize_fov` used in the metrics cell). Without
+# this the predictions collapse into a faint copy of the phase image.
+phase = normalize_fov(sample_pos.data[0, phase_cidx, z].astype(np.float32))
+phase_tensor = torch.from_numpy(phase)[None, None, None].to(device)  # (B, C, Z, Y, X)
 
-# Crop 300x300 pixels from center
-crop_size = 300
 
-center_y, center_x = sample_nucleus.shape[2] // 2, sample_nucleus.shape[3] // 2
-y_start = max(0, center_y - crop_size // 2)
-y_end = min(sample_nucleus.shape[2], center_y + crop_size // 2)
-x_start = max(0, center_x - crop_size // 2)
-x_end = min(sample_nucleus.shape[3], center_x + crop_size // 2)
+def virtual_stain(model):
+    """Predict (nucleus, membrane), center-cropped and min-max scaled for display."""
+    with torch.inference_mode():
+        nuc, mem = model(phase_tensor).cpu().numpy()[0, :, 0]  # (2, Y, X)
+    return min_max_scale(nuc[sl]), min_max_scale(mem[sl])
 
-# Crop fluorescence data and normalize
-sample_nucleus_crop = min_max_scale(sample_nucleus[0, 0, y_start:y_end, x_start:x_end])
-sample_membrane_crop = min_max_scale(
-    sample_membrane[0, 0, y_start:y_end, x_start:x_end]
-)
 
-# Generate virtual stained data from phase (trained model)
-sample_phase_tensor = torch.tensor(sample_phase, dtype=torch.float32).to(device)
-with torch.inference_mode():
-    predicted_image = phase2fluor_model(sample_phase_tensor)
-predicted_nuc_crop = min_max_scale(
-    predicted_image.cpu().numpy()[0, 0, 0, y_start:y_end, x_start:x_end]
-)
-predicted_mem_crop = min_max_scale(
-    predicted_image.cpu().numpy()[0, 1, 0, y_start:y_end, x_start:x_end]
-)
+# The three conditions to compare, each a (nucleus, membrane) image pair.
+conditions = {
+    "Fluorescence": (
+        min_max_scale(sample_pos.data[0, nuc_cidx, z][sl].astype(np.float32)),
+        min_max_scale(sample_pos.data[0, mem_cidx, z][sl].astype(np.float32)),
+    ),
+    "Virtual (trained)": virtual_stain(phase2fluor_model),
+    "Virtual (pretrained)": virtual_stain(pretrained_phase2fluor),
+}
 
-# Generate virtual stained data from pretrained model
-with torch.inference_mode():
-    predicted_image_pretrained = pretrained_phase2fluor(sample_phase_tensor)
-
-# Convert to numpy and normalize
-predicted_nuc_pretrained_crop = min_max_scale(
-    predicted_image_pretrained.cpu().numpy()[0, 0, 0, y_start:y_end, x_start:x_end]
-)
-predicted_mem_pretrained_crop = min_max_scale(
-    predicted_image_pretrained.cpu().numpy()[0, 1, 0, y_start:y_end, x_start:x_end]
-)
-
-# Run segmentation on all nuclei
-fluor_nuc_seg, _ = cellpose_segmentation(sample_nucleus_crop, sample_nucleus_crop)
-virtual_nuc_seg, _ = cellpose_segmentation(predicted_nuc_crop, predicted_nuc_crop)
-pretrained_nuc_seg, _ = cellpose_segmentation(
-    predicted_nuc_pretrained_crop, predicted_nuc_pretrained_crop
-)
-
-# Run segmentation on all membranes (using nucleus parameters for consistency)
-fluor_mem_seg, _ = cellpose_segmentation(sample_membrane_crop, sample_membrane_crop)
-virtual_mem_seg, _ = cellpose_segmentation(predicted_mem_crop, predicted_mem_crop)
-pretrained_mem_seg, _ = cellpose_segmentation(
-    predicted_mem_pretrained_crop, predicted_mem_pretrained_crop
-)
-
-# Convert to numpy
-fluor_nuc_seg = fluor_nuc_seg.numpy()
-virtual_nuc_seg = virtual_nuc_seg.numpy()
-pretrained_nuc_seg = pretrained_nuc_seg.numpy()
-fluor_mem_seg = fluor_mem_seg.numpy()
-virtual_mem_seg = virtual_mem_seg.numpy()
-pretrained_mem_seg = pretrained_mem_seg.numpy()
-
-# Create 3x4 visualization
+# rows = conditions, cols = nucleus | nucleus-seg | membrane | membrane-seg
 fig, axes = plt.subplots(3, 4, figsize=(16, 12))
+counts = {}
+for row, (name, (nuc_img, mem_img)) in enumerate(conditions.items()):
+    nuc_seg = cellpose_segmentation(nuc_img, nuc_img)[0].numpy()
+    mem_seg = cellpose_segmentation(mem_img, mem_img)[0].numpy()
+    counts[name] = (len(np.unique(nuc_seg)) - 1, len(np.unique(mem_seg)) - 1)
+    panels = [
+        (nuc_img, "gray", f"{name}\nNucleus"),
+        (label2rgb(nuc_seg, nuc_img, bg_label=0), None, "Nucleus segmentation"),
+        (mem_img, "gray", f"{name}\nMembrane"),
+        (label2rgb(mem_seg, mem_img, bg_label=0), None, "Membrane segmentation"),
+    ]
+    for col, (img, cmap, title) in enumerate(panels):
+        axes[row, col].imshow(img, cmap=cmap)
+        axes[row, col].set_title(title)
+        axes[row, col].axis("off")
 
-# Row 1: Fluorescence data
-axes[0, 0].imshow(sample_nucleus_crop, cmap="gray")
-axes[0, 0].set_title("Fluorescence Nucleus")
-axes[0, 0].axis("off")
-
-fluor_nuc_overlay = label2rgb(fluor_nuc_seg, sample_nucleus_crop, bg_label=0)
-axes[0, 1].imshow(fluor_nuc_overlay)
-axes[0, 1].set_title("Nucleus Segmentation")
-axes[0, 1].axis("off")
-
-axes[0, 2].imshow(sample_membrane_crop, cmap="gray")
-axes[0, 2].set_title("Fluorescence Membrane")
-axes[0, 2].axis("off")
-
-fluor_mem_overlay = label2rgb(fluor_mem_seg, sample_membrane_crop, bg_label=0)
-axes[0, 3].imshow(fluor_mem_overlay)
-axes[0, 3].set_title("Membrane Segmentation")
-axes[0, 3].axis("off")
-
-# Row 2: Virtual stained data (trained)
-axes[1, 0].imshow(predicted_nuc_crop, cmap="gray")
-axes[1, 0].set_title("Virtual Nucleus (Trained)")
-axes[1, 0].axis("off")
-
-virtual_nuc_overlay = label2rgb(virtual_nuc_seg, predicted_nuc_crop, bg_label=0)
-axes[1, 1].imshow(virtual_nuc_overlay)
-axes[1, 1].set_title("Nucleus Segmentation")
-axes[1, 1].axis("off")
-
-axes[1, 2].imshow(predicted_mem_crop, cmap="gray")
-axes[1, 2].set_title("Virtual Membrane (Trained)")
-axes[1, 2].axis("off")
-
-virtual_mem_overlay = label2rgb(virtual_mem_seg, predicted_mem_crop, bg_label=0)
-axes[1, 3].imshow(virtual_mem_overlay)
-axes[1, 3].set_title("Membrane Segmentation")
-axes[1, 3].axis("off")
-
-# Row 3: Virtual stained data (pretrained)
-axes[2, 0].imshow(predicted_nuc_pretrained_crop, cmap="gray")
-axes[2, 0].set_title("Virtual Nucleus (Pretrained)")
-axes[2, 0].axis("off")
-
-pretrained_nuc_overlay = label2rgb(
-    pretrained_nuc_seg, predicted_nuc_pretrained_crop, bg_label=0
-)
-axes[2, 1].imshow(pretrained_nuc_overlay)
-axes[2, 1].set_title("Nucleus Segmentation")
-axes[2, 1].axis("off")
-
-axes[2, 2].imshow(predicted_mem_pretrained_crop, cmap="gray")
-axes[2, 2].set_title("Virtual Membrane (Pretrained)")
-axes[2, 2].axis("off")
-
-pretrained_mem_overlay = label2rgb(
-    pretrained_mem_seg, predicted_mem_pretrained_crop, bg_label=0
-)
-axes[2, 3].imshow(pretrained_mem_overlay)
-axes[2, 3].set_title("Membrane Segmentation")
-axes[2, 3].axis("off")
-
-plt.suptitle(f"Complete Segmentation Comparison - FOV: {sample_fov}", fontsize=16)
+plt.suptitle(f"Segmentation comparison - FOV: {fov}", fontsize=16)
 plt.tight_layout()
 plt.show()
 
-print("Nucleus segmentation counts:")
-print(f"  Fluorescence: {len(np.unique(fluor_nuc_seg)) - 1} nuclei")
-print(f"  Virtual (trained): {len(np.unique(virtual_nuc_seg)) - 1} nuclei")
-print(f"  Virtual (pretrained): {len(np.unique(pretrained_nuc_seg)) - 1} nuclei")
-
-print("\nMembrane segmentation counts:")
-print(f"  Fluorescence: {len(np.unique(fluor_mem_seg)) - 1} objects")
-print(f"  Virtual (trained): {len(np.unique(virtual_mem_seg)) - 1} objects")
-print(f"  Virtual (pretrained): {len(np.unique(pretrained_mem_seg)) - 1} objects")
+# Cell counts per condition.
+print(f"{'Condition':<22}{'Nuclei':>8}{'Membranes':>12}")
+for name, (n_nuc, n_mem) in counts.items():
+    print(f"{name:<22}{n_nuc:>8}{n_mem:>12}")
 
 # %% [markdown]
 # Now let's compute metrics across all FOVs
@@ -2267,6 +2193,20 @@ test_data_fluor2phase = HCSDataModule(
     z_window_size=1,
     batch_size=1,
     num_workers=4,
+    normalizations=[
+        NormalizeSampled(
+            keys=source_channel_fluor,
+            level="fov_statistics",
+            subtrahend="median",
+            divisor="iqr",
+        ),
+        NormalizeSampled(
+            keys=target_channel_labelfree,
+            level="fov_statistics",
+            subtrahend="mean",
+            divisor="std",
+        ),
+    ],
 )
 test_data_fluor2phase.setup("test")
 
@@ -2392,6 +2332,20 @@ test_data_fluor2phase = HCSDataModule(
     z_window_size=1,
     batch_size=1,
     num_workers=4,
+    normalizations=[
+        NormalizeSampled(
+            keys=source_channel_fluor,
+            level="fov_statistics",
+            subtrahend="median",
+            divisor="iqr",
+        ),
+        NormalizeSampled(
+            keys=target_channel_labelfree,
+            level="fov_statistics",
+            subtrahend="mean",
+            divisor="std",
+        ),
+    ],
 )
 test_data_fluor2phase.setup("test")
 
@@ -3391,4 +3345,15 @@ f.tight_layout()
 
 # Congratulations! You have trained an image translation model, evaluated its performance, and explored what the network has learned.
 
+# </div>
+
+# %% [markdown] tags=[]
+# <div class="alert alert-success">
+#
+# ## 🤗 Hugging Face Spaces Demos 🤗
+#
+# Try the VSCyto2D pretrained model in your browser: [demo of Cytoland VSCyto2D virtual staining](https://huggingface.co/spaces/biohub/Cytoland).
+#
+# And check out the DynaCell evaluation framework for dynamic 3D virtual staining: [demo comparing deterministic vs generative virtual staining](https://huggingface.co/spaces/biohub/dynacell).
+#
 # </div>
