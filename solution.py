@@ -802,7 +802,8 @@ log_batch_jupyter(augmented_batch, dataset.channel_names)
 #
 # **Schedule** — `schedule="WarmupCosine"`, `lr=6e-4`: the learning rate ramps
 # up from 0 over the first few epochs (warmup), then follows a cosine decay
-# toward 0. Warmup avoids early gradient blow-up with AdamW; cosine decay is a
+# toward 0. Warmup lets AdamW's adaptive step-size estimates stabilize before
+# taking large steps, preventing early training instability; cosine decay is a
 # strong default for vision transformer / ConvNeXt-style encoders.
 
 # %% [markdown]
@@ -865,8 +866,8 @@ target_channel = ["TODO", "TODO"]
 # Setup the data module.
 # NOTE: the `augmentations` chain you build above must end with a
 # CenterSpatialCropd that brings patches down to yx_patch_size. HCSDataModule
-# validates this in on_after_batch_transfer and will raise ValueError if the
-# final source shape doesn't match (z_window_size, *yx_patch_size).
+# validates this and will raise ValueError if the
+# final source shape doesn't match the model's expected input shape.
 phase2fluor_2D_data = HCSDataModule(
     data_path,
     source_channel=source_channel,
@@ -877,10 +878,6 @@ phase2fluor_2D_data = HCSDataModule(
     num_workers=4,
     yx_patch_size=YX_PATCH_SIZE,
     augmentations=augmentations,
-    # val_augmentations defaults to empty, which means validation batches are
-    # full FOVs (~2048x2048). That's far too big for the model and blows up
-    # GPU memory on 15 GB T4s. Apply a center crop on val so val batches
-    # match the model's expected yx_patch_size.
     val_augmentations=[
         CenterSpatialCropd(
             keys=source_channel + target_channel,
@@ -955,10 +952,6 @@ phase2fluor_2D_data = HCSDataModule(
     num_workers=4,
     yx_patch_size=YX_PATCH_SIZE,
     augmentations=augmentations,
-    # val_augmentations defaults to empty, which means validation batches are
-    # full FOVs (~2048x2048). That's far too big for the model and blows up
-    # GPU memory on 15 GB T4s. Apply a center crop on val so val batches
-    # match the model's expected yx_patch_size.
     val_augmentations=[
         CenterSpatialCropd(
             keys=source_channel + target_channel,
@@ -1007,7 +1000,7 @@ trainer.fit(phase2fluor_model, datamodule=phase2fluor_2D_data)
 # where the graph is constructed before the training loop and remains static.
 # In other words, the graph of the network can change with every forward pass.
 # Therefore, we need to supply an input tensor to construct the graph.
-# The input tensor can be a random tensor of the correct shape and type.
+# NOTE: The input tensor can be a random tensor of the correct shape and type.
 # We can also supply a real image from the dataset.
 # The latter is more useful for debugging.
 
@@ -1054,16 +1047,6 @@ model_graph_phase2fluor.visual_graph
 # </div>
 
 # %% [markdown]
-# <div class="alert alert-warning">
-# <b>Before re-running training:</b> if a previous training cell is still
-# holding the GPU (you'll see <code>CUDA out of memory</code>), restart the
-# Jupyter kernel (<b>Kernel → Restart</b> in Jupyter, or <b>Restart</b> in
-# VSCode) to release the previous model and optimizer state. The dataset and
-# augmentations will rebuild quickly; only the trained weights need to be
-# re-loaded via <code>load_from_checkpoint</code> if you want to resume.
-# </div>
-
-# %% [markdown]
 # Now that `fast_dev_run` confirmed the pipeline works end-to-end, we switch
 # to a "real" Trainer configured for an actual multi-epoch run. New Lightning
 # knobs appearing here:
@@ -1095,9 +1078,8 @@ steps_per_epoch = n_samples // BATCH_SIZE  # steps per epoch.
 # #######################
 # How many passes over the training set should we run? Pick a value
 # (30-40 is a reasonable starting point on the course AWS T4 GPUs —
-# each epoch is ~1.5 min, so ~45-60 min total). You can monitor training
-# progress in TensorBoard; if loss plateaus early, fewer epochs are
-# enough — if it's still improving at the end, increase it.
+# each epoch is ~0.5 min, so ~15-20 min total). You can monitor training
+# progress in TensorBoard
 n_epochs = ...  # TODO
 
 trainer = VisCyTrainer(
