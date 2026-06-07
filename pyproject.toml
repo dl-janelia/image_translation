@@ -1,0 +1,52 @@
+[project]
+name = "image-translation-exercise"
+version = "0.0.0"
+description = "DL@Janelia image translation (virtual staining) exercise — student environment"
+requires-python = ">=3.12"
+
+# All dependencies for the exercise live here — pyproject.toml is the single
+# source of truth. Bump the cytoland git ref below to upgrade VisCy.
+#
+# Pinned to v0.5.0a3, which carries two fixes needed by this exercise:
+#   - iohub zarr-python codec fix (from a2): viscy_data._zarr_codec pins iohub
+#     off the broken `zarrs` Rust pipeline on import, unblocking num_workers>0
+#     on sharded zarr-v3 stores.
+#   - detach_sample multi-channel logging fix: TensorBoard now logs BOTH the
+#     experimental and predicted fluorescence channels (was truncating to 1).
+#
+# torch / torchvision / transformers are intentionally unpinned — they
+# resolve to current PyPI (cu13) wheels, which work on the course machines.
+# NOTE: torch ships its own CUDA libs. If a system CUDA on LD_LIBRARY_PATH
+# (e.g. /usr/local/cuda) shadows them, the first cuBLASLt call aborts with
+# "Cannot load symbol cublasLtGetVersion". The fix belongs in the AWS AMI —
+# it must NOT prepend /usr/local/cuda/lib64 to LD_LIBRARY_PATH (see
+# scripts/diagnose_cublas.sh). Not worked around here.
+dependencies = [
+    "torch",
+    "torchvision",
+    "transformers",
+    "cytoland[metrics] @ git+https://github.com/mehta-lab/VisCy.git@v0.5.0a3#subdirectory=applications/cytoland",
+    # Enables HCSDataModule(mmap_preload=True, scratch_dir=...) — the RAM-backed
+    # preload path. Optional/advanced (no speedup once the workload is GPU-bound),
+    # but required so mmap_preload=True doesn't error if a student/power-user enables it.
+    "tensordict",
+    "cellpose",
+    "cmap",
+    "torchview",
+    "scikit-learn",
+    "torchmetrics[detection]",
+    "faster-coco-eval",
+    "jupyter",
+    "ipykernel",
+    "ipywidgets",
+    "jupytext",
+    "nbformat",
+    "nbconvert",
+    # tensorboard's default.py does `import pkg_resources` (from setuptools).
+    # Python 3.12 conda envs don't ship setuptools by default anymore, so
+    # we add it explicitly.
+    "setuptools",
+]
+
+[tool.uv]
+package = false
